@@ -1,0 +1,30 @@
+[
+	{
+		"if": {
+			"target_family": "windows",
+			"target_os": "windows",
+			"target_arch": "x86_64",
+			"target_endian": "little"
+		},
+		"then": {
+			"connection_type": "inet_socket",
+			"port": 2203,
+			"bind-addr": "127.0.0.1",
+			"modules": "./modules"
+		}
+	},
+	{
+		"if": {
+			"target_family": "unix",
+			"target_os": "linux",
+			"target_arch": "x86_64",
+			"target_endian": "little"
+		},
+		"then": {
+			"gotham": "./service/gotham",
+			"connection_type": "unix_socket",
+			"path": "./gotham.sock",
+			"modules": "./modules"
+		}
+	}
+]
