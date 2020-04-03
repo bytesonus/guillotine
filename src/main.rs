@@ -8,6 +8,7 @@ extern crate serde_json;
 
 mod constants;
 mod parser;
+mod process_runner;
 mod runner;
 
 use async_std::{fs, path::Path};
