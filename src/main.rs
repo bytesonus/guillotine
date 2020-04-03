@@ -1,6 +1,6 @@
 extern crate async_std;
 extern crate clap;
-#[cfg(feature = "serde_derive")] 
+#[cfg(feature = "serde_derive")]
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;

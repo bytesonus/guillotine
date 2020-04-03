@@ -63,8 +63,8 @@ async fn parse_if_config(input: &EnvRequirements) -> Result<bool> {
 	let mut satisfied = true;
 
 	if let Some(required_cfg) = &input.target_family {
-		if (required_cfg == "unix" && cfg!(target_family = "unix"))
-			|| (required_cfg == "windows" && cfg!(target_family = "windows"))
+		if (required_cfg == "unix" && cfg!(target_family = "unix")) ||
+			(required_cfg == "windows" && cfg!(target_family = "windows"))
 		{
 			satisfied &= true;
 		} else {
@@ -73,15 +73,15 @@ async fn parse_if_config(input: &EnvRequirements) -> Result<bool> {
 	}
 
 	if let Some(required_cfg) = &input.target_os {
-		if (required_cfg == "windows" && cfg!(target_os = "windows"))
-			|| (required_cfg == "macos" && cfg!(target_os = "macos"))
-			|| (required_cfg == "ios" && cfg!(target_os = "ios"))
-			|| (required_cfg == "linux" && cfg!(target_os = "linux"))
-			|| (required_cfg == "android" && cfg!(target_os = "android"))
-			|| (required_cfg == "freebsd" && cfg!(target_os = "freebsd"))
-			|| (required_cfg == "dragonfly" && cfg!(target_os = "dragonfly"))
-			|| (required_cfg == "openbsd" && cfg!(target_os = "openbsd"))
-			|| (required_cfg == "netbsd" && cfg!(target_os = "netbsd"))
+		if (required_cfg == "windows" && cfg!(target_os = "windows")) ||
+			(required_cfg == "macos" && cfg!(target_os = "macos")) ||
+			(required_cfg == "ios" && cfg!(target_os = "ios")) ||
+			(required_cfg == "linux" && cfg!(target_os = "linux")) ||
+			(required_cfg == "android" && cfg!(target_os = "android")) ||
+			(required_cfg == "freebsd" && cfg!(target_os = "freebsd")) ||
+			(required_cfg == "dragonfly" && cfg!(target_os = "dragonfly")) ||
+			(required_cfg == "openbsd" && cfg!(target_os = "openbsd")) ||
+			(required_cfg == "netbsd" && cfg!(target_os = "netbsd"))
 		{
 			satisfied &= true;
 		} else {
@@ -90,13 +90,13 @@ async fn parse_if_config(input: &EnvRequirements) -> Result<bool> {
 	}
 
 	if let Some(required_cfg) = &input.target_arch {
-		if (required_cfg == "x86" && cfg!(target_arch = "x86"))
-			|| (required_cfg == "x86_64" && cfg!(target_arch = "x86_64"))
-			|| (required_cfg == "mips" && cfg!(target_arch = "mips"))
-			|| (required_cfg == "powerpc" && cfg!(target_arch = "powerpc"))
-			|| (required_cfg == "powerpc64" && cfg!(target_arch = "powerpc64"))
-			|| (required_cfg == "arm" && cfg!(target_arch = "arm"))
-			|| (required_cfg == "aarch64" && cfg!(target_arch = "aarch64"))
+		if (required_cfg == "x86" && cfg!(target_arch = "x86")) ||
+			(required_cfg == "x86_64" && cfg!(target_arch = "x86_64")) ||
+			(required_cfg == "mips" && cfg!(target_arch = "mips")) ||
+			(required_cfg == "powerpc" && cfg!(target_arch = "powerpc")) ||
+			(required_cfg == "powerpc64" && cfg!(target_arch = "powerpc64")) ||
+			(required_cfg == "arm" && cfg!(target_arch = "arm")) ||
+			(required_cfg == "aarch64" && cfg!(target_arch = "aarch64"))
 		{
 			satisfied &= true;
 		} else {
@@ -105,8 +105,8 @@ async fn parse_if_config(input: &EnvRequirements) -> Result<bool> {
 	}
 
 	if let Some(required_cfg) = &input.target_endian {
-		if (required_cfg == "little" && cfg!(target_endian = "little"))
-			|| (required_cfg == "big" && cfg!(target_endian = "big"))
+		if (required_cfg == "little" && cfg!(target_endian = "little")) ||
+			(required_cfg == "big" && cfg!(target_endian = "big"))
 		{
 			satisfied &= true;
 		} else {
@@ -123,19 +123,19 @@ async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
 		.unwrap()
 		.to_str()
 		.unwrap()
-        .to_string();
-        
-    input.modules = fs::canonicalize(input.modules)
-        .await
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+		.to_string();
+
+	input.modules = fs::canonicalize(input.modules)
+		.await
+		.unwrap()
+		.to_str()
+		.unwrap()
+		.to_string();
 
 	if input.gotham.connection_type == "unix_socket" {
-        if input.gotham.socket_path.is_none() {
-            return throw_parse_error();
-        }
+		if input.gotham.socket_path.is_none() {
+			return throw_parse_error();
+		}
 		input.gotham.socket_path = Some(
 			fs::canonicalize(input.gotham.socket_path.unwrap())
 				.await
@@ -144,19 +144,19 @@ async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
 				.unwrap()
 				.to_string(),
 		);
-        
-        Ok(input)
-	} else if input.gotham.connection_type == "inet_socket" {
-        if input.gotham.port.is_none() {
-            input.gotham.port = Some(2203);
-        }
 
-        if input.gotham.bind_addr.is_none() {
-            input.gotham.bind_addr = Some("127.0.0.1".to_string());
-        }
-        
-        Ok(input)
-    } else {
-        throw_parse_error()
-    }
+		Ok(input)
+	} else if input.gotham.connection_type == "inet_socket" {
+		if input.gotham.port.is_none() {
+			input.gotham.port = Some(2203);
+		}
+
+		if input.gotham.bind_addr.is_none() {
+			input.gotham.bind_addr = Some("127.0.0.1".to_string());
+		}
+
+		Ok(input)
+	} else {
+		throw_parse_error()
+	}
 }
