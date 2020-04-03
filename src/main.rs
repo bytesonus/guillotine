@@ -1,5 +1,9 @@
 extern crate async_std;
 extern crate clap;
+#[cfg(feature = "serde_derive")] 
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 extern crate serde_json;
 
 mod constants;
@@ -7,7 +11,6 @@ mod parser;
 
 use async_std::{fs, path::Path, task};
 use clap::{App, Arg};
-use serde_json::from_str;
 use std::{process::Command, time::Duration};
 
 #[async_std::main]
@@ -44,36 +47,24 @@ async fn main() {
 		return;
 	}
 
-	let file_contents = file_contents.unwrap();
-	let parsed_config = from_str(&file_contents);
-	if let Err(err) = parsed_config {
-		println!("Config file could not be parsed: {}", err);
-		return;
-	}
-
-	let config_result = parser::select_config(parsed_config.unwrap()).await;
+	let config_result = parser::select_config(file_contents.unwrap()).await;
 	if let Err(err) = config_result {
 		println!("Error selecting a configuration to run: {}", err);
 		return;
 	}
 	let config = config_result.unwrap();
-	let gotham_path = config.get("gotham").unwrap().as_str().unwrap().to_string();
+	let gotham_path = config.gotham.path;
 
-	let mut gotham_process = if config.get("connection_type").unwrap() == "unix_socket" {
-		let socket_path = config.get("path").unwrap().as_str().unwrap().to_string();
+	let mut gotham_process = if config.gotham.connection_type == "unix_socket" {
+		let socket_path = config.gotham.socket_path.unwrap();
 		Command::new(gotham_path)
 			.arg("--socket-location")
 			.arg(socket_path)
 			.spawn()
 			.expect("Failed to execute gotham")
 	} else {
-		let port = config.get("port").unwrap().as_u64().unwrap();
-		let bind_addr = config
-			.get("bind-addr")
-			.unwrap()
-			.as_str()
-			.unwrap()
-			.to_string();
+		let port = config.gotham.port.unwrap();
+		let bind_addr = config.gotham.bind_addr.unwrap();
 		Command::new(gotham_path)
 			.arg("--port")
 			.arg(format!("{}", port))
