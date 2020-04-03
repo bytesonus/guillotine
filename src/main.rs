@@ -8,10 +8,10 @@ extern crate serde_json;
 
 mod constants;
 mod parser;
+mod runner;
 
-use async_std::{fs, path::Path, task};
+use async_std::{fs, path::Path};
 use clap::{App, Arg};
-use std::{process::Command, time::Duration};
 
 #[async_std::main]
 async fn main() {
@@ -53,36 +53,6 @@ async fn main() {
 		return;
 	}
 	let config = config_result.unwrap();
-	let gotham_path = config.gotham.path;
 
-	let mut gotham_process = if config.gotham.connection_type == "unix_socket" {
-		let socket_path = config.gotham.socket_path.unwrap();
-		Command::new(gotham_path)
-			.arg("--socket-location")
-			.arg(socket_path)
-			.spawn()
-			.expect("Failed to execute gotham")
-	} else {
-		let port = config.gotham.port.unwrap();
-		let bind_addr = config.gotham.bind_addr.unwrap();
-		Command::new(gotham_path)
-			.arg("--port")
-			.arg(format!("{}", port))
-			.arg("--bind-addr")
-			.arg(bind_addr)
-			.spawn()
-			.expect("Failed to execute gotham")
-	};
-
-	loop {
-		match gotham_process.try_wait() {
-			Ok(Some(status)) => println!("Exited with: {}", status),
-			Ok(None) => {
-				let res = gotham_process.wait();
-				println!("Exited with: {:?}", res);
-			}
-			Err(e) => println!("Error attempting to wait: {}", e),
-		}
-		task::sleep(Duration::from_millis(500)).await;
-	}
+	runner::run(config).await;
 }

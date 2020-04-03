@@ -1,4 +1,4 @@
-use async_std::fs;
+use async_std::{fs, path::Path};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{Error, Result};
 
@@ -40,7 +40,6 @@ pub struct GothamConfig {
 
 pub async fn select_config(input: String) -> Result<ConfigValue> {
 	let envs: ConfigData = serde_json::from_str(&input)?;
-	println!("{:#?}", envs);
 	if envs.config.is_some() {
 		parse_config(envs.config.unwrap()).await
 	} else {
@@ -136,8 +135,15 @@ async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
 		if input.gotham.socket_path.is_none() {
 			return throw_parse_error();
 		}
+		let socket_path = &input.gotham.socket_path.unwrap();
+		let socket_path = Path::new(socket_path);
+
+		if !socket_path.exists().await {
+			fs::write(socket_path, "").await.unwrap();
+		}
+
 		input.gotham.socket_path = Some(
-			fs::canonicalize(input.gotham.socket_path.unwrap())
+			fs::canonicalize(socket_path)
 				.await
 				.unwrap()
 				.to_str()

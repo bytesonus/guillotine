@@ -1,0 +1,9 @@
+{
+    "name": "api.vicara.co/beta",
+    "script": "main.js",
+    "watch": false,
+    "interpreter": "node@11.10.0",
+    "env": {
+        "NODE_ENV": "production"
+    }
+}
