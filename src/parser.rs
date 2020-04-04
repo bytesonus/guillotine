@@ -1,21 +1,21 @@
 use async_std::{fs, path::Path};
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 use serde_json::{Error, Result};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct ConfigData {
 	pub version: String,
 	pub configs: Option<Vec<EnvConfig>>,
 	pub config: Option<ConfigValue>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct EnvConfig {
 	pub env: EnvRequirements,
 	pub config: ConfigValue,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct EnvRequirements {
 	pub target_family: Option<String>,
 	pub target_os: Option<String>,
@@ -23,13 +23,13 @@ pub struct EnvRequirements {
 	pub target_endian: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct ConfigValue {
 	pub gotham: GothamConfig,
 	pub modules: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct GothamConfig {
 	pub path: String,
 	pub connection_type: String,

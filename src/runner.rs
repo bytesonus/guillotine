@@ -1,7 +1,16 @@
-use crate::{parser::ConfigValue, process_runner::ProcessRunner};
-
-use async_std::{path::Path, task};
+use crate::{
+	parser::ConfigValue,
+	process_runner::{ModuleConfig, ProcessRunner},
+};
 use std::time::Duration;
+
+use async_std::{
+	fs::{self, DirEntry},
+	io::Error,
+	path::Path,
+	prelude::*,
+	task,
+};
 
 pub async fn run(config: ConfigValue) {
 	let mut tracked_processes: Vec<ProcessRunner> = Vec::new();
@@ -10,33 +19,66 @@ pub async fn run(config: ConfigValue) {
 	tracked_processes.push(
 		if config.gotham.connection_type == "unix_socket" {
 			let socket_path = config.gotham.socket_path.unwrap();
-			let mut module = ProcessRunner::new("Gotham".to_string(), gotham_path);
-			module
-				.args(vec!["--socket-location".to_string(), socket_path])
-				.envs(vec![]);
-			module
+			ProcessRunner::new(ModuleConfig::gotham_default(
+				gotham_path,
+				vec!["--socket-location".to_string(), socket_path],
+			))
 		} else {
 			let port = config.gotham.port.unwrap();
 			let bind_addr = config.gotham.bind_addr.unwrap();
 
-			let mut module = ProcessRunner::new("Gotham".to_string(), gotham_path);
-			module
-				.args(vec![
+			ProcessRunner::new(ModuleConfig::gotham_default(
+				gotham_path,
+				vec![
 					"--port".to_string(),
 					format!("{}", port),
 					"--bind-addr".to_string(),
 					bind_addr,
-				])
-				.envs(vec![]);
-			module
+				],
+			))
 		},
 	);
 
-	if Path::new(&config.modules).exists().await {
+	let modules_path = Path::new(&config.modules);
+	if modules_path.exists().await && modules_path.is_dir().await {
 		// Get all modules and add them to the list
+		let mut dir_iterator = modules_path.read_dir().await.unwrap();
+		while let Some(path) = dir_iterator.next().await {
+			let mut module = get_module_from_path(path).await;
+			if module.is_some() {
+				tracked_processes.push(module.take().unwrap());
+			}
+		}
 	}
 
 	keep_processes_alive(tracked_processes).await;
+}
+
+async fn get_module_from_path(path: Result<DirEntry, Error>) -> Option<ProcessRunner> {
+	if path.is_err() {
+		return None;
+	}
+	let root_path = path.unwrap().path();
+	let module_json = root_path.join("module.json");
+
+	if !module_json.exists().await {
+		return None;
+	}
+
+	let module_json_contents = fs::read_to_string(module_json).await;
+	if module_json_contents.is_err() {
+		return None;
+	}
+	let module_json_contents = module_json_contents.unwrap();
+
+	let config: Result<ModuleConfig, serde_json::Error> =
+		serde_json::from_str(&module_json_contents);
+
+	if config.is_err() {
+		return None;
+	}
+
+	return Some(ProcessRunner::new(config.unwrap()));
 }
 
 async fn keep_processes_alive(mut processes: Vec<ProcessRunner>) {

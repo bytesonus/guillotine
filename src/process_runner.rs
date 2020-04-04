@@ -1,32 +1,39 @@
+use serde_derive::Deserialize;
 use std::process::{Child, Command};
 
+#[derive(Deserialize, Debug)]
+pub struct ModuleConfig {
+	pub name: String,
+	pub command: String,
+	pub interpreter: Option<String>,
+	pub args: Option<Vec<String>>,
+	pub envs: Option<Vec<(String, String)>>,
+}
+
+impl ModuleConfig {
+	pub fn gotham_default(path: String, args: Vec<String>) -> Self {
+		ModuleConfig {
+			name: "Gotham".to_string(),
+			command: path,
+			interpreter: None,
+			args: Some(args),
+			envs: None,
+		}
+	}
+}
+
+#[derive(Debug)]
 pub struct ProcessRunner {
 	process: Option<Child>,
-	name: String,
-	command: String,
-	args: Vec<String>,
-	envs: Vec<(String, String)>,
+	config: ModuleConfig,
 }
 
 impl ProcessRunner {
-	pub fn new(name: String, command: String) -> Self {
+	pub fn new(config: ModuleConfig) -> Self {
 		ProcessRunner {
 			process: None,
-			name,
-			command,
-			args: vec![],
-			envs: vec![],
+			config,
 		}
-	}
-
-	pub fn args(&mut self, args: Vec<String>) -> &mut Self {
-		self.args = args;
-		self
-	}
-
-	pub fn envs(&mut self, envs: Vec<(String, String)>) -> &mut Self {
-		self.envs = envs;
-		self
 	}
 
 	pub fn is_process_running(&mut self) -> bool {
@@ -47,12 +54,23 @@ impl ProcessRunner {
 			self.process.as_mut().unwrap().kill().unwrap();
 		}
 
-		let child = Command::new(&self.command)
-			.args(&self.args)
-			.envs(self.envs.clone())
-			.spawn();
+		let child = if self.config.interpreter.is_none() {
+			Command::new(&self.config.command)
+				.args(self.config.args.as_ref().unwrap_or(&vec![]))
+				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone())
+				.spawn()
+		} else {
+			Command::new(self.config.interpreter.as_ref().unwrap())
+				.arg(&self.config.command)
+				.args(self.config.args.as_ref().unwrap_or(&vec![]))
+				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone())
+				.spawn()
+		};
 		if let Err(err) = child {
-			println!("Error spawing child process '{}': {}", self.name, err);
+			println!(
+				"Error spawing child process '{}': {}",
+				self.config.name, err
+			);
 			return;
 		}
 		self.process = Some(child.unwrap());
