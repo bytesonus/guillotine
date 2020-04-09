@@ -11,9 +11,9 @@ pub struct ModuleConfig {
 }
 
 impl ModuleConfig {
-	pub fn gotham_default(path: String, args: Vec<String>) -> Self {
+	pub fn juno_default(path: String, args: Vec<String>) -> Self {
 		ModuleConfig {
-			name: "Gotham".to_string(),
+			name: "Juno".to_string(),
 			command: path,
 			interpreter: None,
 			args: Some(args),

@@ -25,12 +25,12 @@ pub struct EnvRequirements {
 
 #[derive(Deserialize)]
 pub struct ConfigValue {
-	pub gotham: GothamConfig,
+	pub juno: JunoConfig,
 	pub modules: String,
 }
 
 #[derive(Deserialize)]
-pub struct GothamConfig {
+pub struct JunoConfig {
 	pub path: String,
 	pub connection_type: String,
 	pub port: Option<u16>,
@@ -117,7 +117,7 @@ async fn parse_if_config(input: &EnvRequirements) -> Result<bool> {
 }
 
 async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
-	input.gotham.path = fs::canonicalize(input.gotham.path)
+	input.juno.path = fs::canonicalize(input.juno.path)
 		.await
 		.unwrap()
 		.to_str()
@@ -131,18 +131,18 @@ async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
 		.unwrap()
 		.to_string();
 
-	if input.gotham.connection_type == "unix_socket" {
-		if input.gotham.socket_path.is_none() {
+	if input.juno.connection_type == "unix_socket" {
+		if input.juno.socket_path.is_none() {
 			return throw_parse_error();
 		}
-		let socket_path = &input.gotham.socket_path.unwrap();
+		let socket_path = &input.juno.socket_path.unwrap();
 		let socket_path = Path::new(socket_path);
 
 		if !socket_path.exists().await {
 			fs::write(socket_path, "").await.unwrap();
 		}
 
-		input.gotham.socket_path = Some(
+		input.juno.socket_path = Some(
 			fs::canonicalize(socket_path)
 				.await
 				.unwrap()
@@ -152,13 +152,13 @@ async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
 		);
 
 		Ok(input)
-	} else if input.gotham.connection_type == "inet_socket" {
-		if input.gotham.port.is_none() {
-			input.gotham.port = Some(2203);
+	} else if input.juno.connection_type == "inet_socket" {
+		if input.juno.port.is_none() {
+			input.juno.port = Some(2203);
 		}
 
-		if input.gotham.bind_addr.is_none() {
-			input.gotham.bind_addr = Some("127.0.0.1".to_string());
+		if input.juno.bind_addr.is_none() {
+			input.juno.bind_addr = Some("127.0.0.1".to_string());
 		}
 
 		Ok(input)

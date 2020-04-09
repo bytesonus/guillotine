@@ -9,8 +9,8 @@
 				"target_endian": "little"
 			},
 			"config": {
-				"gotham": {
-					"path": "./service/gotham",
+				"juno": {
+					"path": "./service/juno",
 					"connection_type": "inet_socket",
 					"port": 2203,
 					"bind-addr": "127.0.0.1"
@@ -26,10 +26,10 @@
 				"target_endian": "little"
 			},
 			"config": {
-				"gotham": {
-					"path": "./service/gotham",
+				"juno": {
+					"path": "./service/juno",
 					"connection_type": "unix_socket",
-					"socket_path": "./gotham.sock"
+					"socket_path": "./juno.sock"
 				},
 				"modules": "./modules"
 			}

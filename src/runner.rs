@@ -15,20 +15,20 @@ use async_std::{
 pub async fn run(config: ConfigValue) {
 	let mut tracked_processes: Vec<ProcessRunner> = Vec::new();
 
-	let gotham_path = config.gotham.path;
+	let juno_path = config.juno.path;
 	tracked_processes.push(
-		if config.gotham.connection_type == "unix_socket" {
-			let socket_path = config.gotham.socket_path.unwrap();
-			ProcessRunner::new(ModuleConfig::gotham_default(
-				gotham_path,
+		if config.juno.connection_type == "unix_socket" {
+			let socket_path = config.juno.socket_path.unwrap();
+			ProcessRunner::new(ModuleConfig::juno_default(
+				juno_path,
 				vec!["--socket-location".to_string(), socket_path],
 			))
 		} else {
-			let port = config.gotham.port.unwrap();
-			let bind_addr = config.gotham.bind_addr.unwrap();
+			let port = config.juno.port.unwrap();
+			let bind_addr = config.juno.bind_addr.unwrap();
 
-			ProcessRunner::new(ModuleConfig::gotham_default(
-				gotham_path,
+			ProcessRunner::new(ModuleConfig::juno_default(
+				juno_path,
 				vec![
 					"--port".to_string(),
 					format!("{}", port),
