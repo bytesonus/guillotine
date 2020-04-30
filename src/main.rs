@@ -8,6 +8,8 @@ extern crate futures_timer;
 extern crate juno;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate lazy_static;
 
 mod juno_module;
 mod misc;
