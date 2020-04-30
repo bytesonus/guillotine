@@ -138,3 +138,10 @@ fn get_current_time() -> u64 {
 		.expect("Time went backwards. Wtf?")
 		.as_millis() as u64
 }
+
+fn get_current_time() -> u64 {
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.expect("Time went backwards. Wtf?")
+		.as_millis() as u64
+}
