@@ -20,7 +20,10 @@ lazy_static! {
 	static ref MESSAGE_SENDER: Mutex<Option<UnboundedSender<GuillotineMessage>>> = Mutex::new(None);
 }
 
-pub async fn setup_module(config: ConfigValue, sender: UnboundedSender<GuillotineMessage>) {
+pub async fn setup_module(
+	config: ConfigValue,
+	sender: UnboundedSender<GuillotineMessage>,
+) -> JunoModule {
 	let mut message_sender = MESSAGE_SENDER.lock().unwrap();
 	*message_sender = Some(sender);
 	drop(message_sender);
@@ -44,6 +47,8 @@ pub async fn setup_module(config: ConfigValue, sender: UnboundedSender<Guillotin
 		.declare_function("listProcesses", list_processes)
 		.await
 		.unwrap();
+
+	module
 }
 
 fn list_processes(_: HashMap<String, Value>) -> Value {

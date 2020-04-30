@@ -110,7 +110,7 @@ async fn keep_processes_alive(
 ) {
 	// Initialize the guillotine juno module
 	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
-	juno_module::setup_module(juno_config, sender).await;
+	let _module = juno_module::setup_module(juno_config, sender).await;
 
 	let mut timer_future = Delay::new(Duration::from_millis(100));
 	let mut command_future = command_receiver.next();
