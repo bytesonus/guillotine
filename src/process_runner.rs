@@ -4,6 +4,12 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
+#[derive(Debug)]
+pub enum ModuleRunningStatus {
+	Running,
+	Offline,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct ModuleConfig {
 	pub name: String,
@@ -28,21 +34,28 @@ impl ModuleConfig {
 #[derive(Debug)]
 pub struct ProcessRunner {
 	process: Option<Child>,
+	pub module_id: u64,
 	pub config: ModuleConfig,
-	pub created_at: u128,
+	pub status: ModuleRunningStatus,
 	pub restarts: u64,
+	pub uptime: u64,
+	pub last_started_at: u64,
+	pub crashes: u64,
+	pub created_at: u64,
 }
 
 impl ProcessRunner {
-	pub fn new(config: ModuleConfig) -> Self {
+	pub fn new(module_id: u64, config: ModuleConfig) -> Self {
 		ProcessRunner {
+			module_id,
 			process: None,
 			config,
-			created_at: SystemTime::now()
-				.duration_since(UNIX_EPOCH)
-				.expect("Time went backwards. Wtf?")
-				.as_nanos(),
+			status: ModuleRunningStatus::Offline,
 			restarts: 0,
+			uptime: 0,
+			last_started_at: 0,
+			crashes: 0,
+			created_at: get_current_time(),
 		}
 	}
 
@@ -53,9 +66,24 @@ impl ProcessRunner {
 
 		let process = self.process.as_mut().unwrap();
 		match process.try_wait() {
-			Ok(Some(_)) => false, // Process has already exited
-			Ok(None) => true,
-			Err(_) => false,
+			Ok(Some(status)) => {
+				if !status.success() {
+					self.crashes += 1;
+					self.uptime = 0;
+				}
+				self.status = ModuleRunningStatus::Offline;
+				false
+			} // Process has already exited
+			Ok(None) => {
+				self.status = ModuleRunningStatus::Running;
+				self.uptime = get_current_time() - self.last_started_at;
+				true
+			}
+			Err(_) => {
+				self.status = ModuleRunningStatus::Offline;
+				self.uptime = 0;
+				false
+			}
 		}
 	}
 
@@ -85,5 +113,14 @@ impl ProcessRunner {
 		}
 		self.process = Some(child.unwrap());
 		self.restarts += 1;
+		self.status = ModuleRunningStatus::Running;
+		self.last_started_at = get_current_time();
 	}
+}
+
+fn get_current_time() -> u64 {
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.expect("Time went backwards. Wtf?")
+		.as_millis() as u64
 }

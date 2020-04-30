@@ -23,13 +23,13 @@ pub struct EnvRequirements {
 	pub target_endian: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ConfigValue {
 	pub juno: JunoConfig,
 	pub modules: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct JunoConfig {
 	pub path: String,
 	pub connection_type: String,
