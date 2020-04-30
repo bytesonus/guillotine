@@ -1,5 +1,8 @@
 use serde_derive::Deserialize;
-use std::process::{Child, Command};
+use std::{
+	process::{Child, Command},
+	time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Deserialize, Debug)]
 pub struct ModuleConfig {
@@ -25,7 +28,9 @@ impl ModuleConfig {
 #[derive(Debug)]
 pub struct ProcessRunner {
 	process: Option<Child>,
-	config: ModuleConfig,
+	pub config: ModuleConfig,
+	pub created_at: u128,
+	pub restarts: u64,
 }
 
 impl ProcessRunner {
@@ -33,6 +38,11 @@ impl ProcessRunner {
 		ProcessRunner {
 			process: None,
 			config,
+			created_at: SystemTime::now()
+				.duration_since(UNIX_EPOCH)
+				.expect("Time went backwards. Wtf?")
+				.as_nanos(),
+			restarts: 0,
 		}
 	}
 
@@ -74,5 +84,6 @@ impl ProcessRunner {
 			return;
 		}
 		self.process = Some(child.unwrap());
+		self.restarts += 1;
 	}
 }

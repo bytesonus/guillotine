@@ -3,10 +3,14 @@ extern crate clap;
 #[cfg(feature = "serde_derive")]
 #[macro_use]
 extern crate serde_derive;
+extern crate futures;
+extern crate futures_timer;
+extern crate juno;
 extern crate serde;
 extern crate serde_json;
 
-mod constants;
+mod juno_module;
+mod misc;
 mod parser;
 mod process_runner;
 mod runner;
@@ -16,9 +20,9 @@ use clap::{App, Arg};
 
 #[async_std::main]
 async fn main() {
-	let args = App::new(constants::APP_NAME)
-		.version(constants::APP_VERSION)
-		.author(constants::APP_AUTHORS)
+	let args = App::new(misc::APP_NAME)
+		.version(misc::APP_VERSION)
+		.author(misc::APP_AUTHORS)
 		.about("Swift, painless execution")
 		.arg(
 			Arg::with_name("config")
