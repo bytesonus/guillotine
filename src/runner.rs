@@ -142,7 +142,6 @@ async fn keep_processes_alive(
 
 				match command_value {
 					Some(cmd) => {
-						println!("Got command: {:#?}", cmd);
 						match cmd {
 							GuillotineMessage::ListProcesses(sender) => {
 								let mut runners = vec![juno_process.copy()];
