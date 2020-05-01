@@ -141,18 +141,16 @@ async fn keep_processes_alive(
 				command_future = command_receiver.next();
 
 				match command_value {
-					Some(cmd) => {
-						match cmd {
-							GuillotineMessage::ListProcesses(sender) => {
-								let mut runners = vec![juno_process.copy()];
-								processes
-									.iter()
-									.for_each(|process| runners.push(process.copy()));
-								sender.send(runners).unwrap();
-							}
-							_ => {}
+					Some(cmd) => match cmd {
+						GuillotineMessage::ListProcesses(sender) => {
+							let mut runners = vec![juno_process.copy()];
+							processes
+								.iter()
+								.for_each(|process| runners.push(process.copy()));
+							sender.send(runners).unwrap();
 						}
-					}
+						_ => {}
+					},
 					None => {
 						println!("Got None as a command. Is the sender closed?");
 					}
