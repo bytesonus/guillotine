@@ -301,7 +301,7 @@ pub async fn get_module_info(config: ConfigValue, args: &ArgMatches<'_>) {
 		));
 		return;
 	}
-	let module = module.as_object().unwrap();
+	let _module = module.as_object().unwrap();
 }
 
 fn get_date_time(timestamp: i64) -> String {
