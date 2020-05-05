@@ -142,16 +142,15 @@ async fn keep_processes_alive(
 				command_future = command_receiver.next();
 
 				match command_value {
-					Some(cmd) => match cmd {
-						GuillotineMessage::ListProcesses(sender) => {
+					Some(cmd) => {
+						if let GuillotineMessage::ListProcesses(sender) = cmd {
 							let mut runners = vec![juno_process.copy()];
 							processes
 								.iter()
 								.for_each(|process| runners.push(process.copy()));
 							sender.send(runners).unwrap();
 						}
-						_ => {}
-					},
+					}
 					None => {
 						println!("Got None as a command. Is the sender closed?");
 					}
@@ -192,6 +191,6 @@ async fn connect_to_unix_socket(socket_path: &str) -> Result<(), Error> {
 	Ok(())
 }
 #[cfg(target_family = "windows")]
-async fn connect_to_unix_socket(socket_path: &str) -> Result<(), Error> {
+async fn connect_to_unix_socket(_: &str) -> Result<(), Error> {
 	panic!("Unix sockets are not supported on Windows");
 }

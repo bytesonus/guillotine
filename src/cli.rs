@@ -4,18 +4,9 @@ use chrono::{prelude::*, Utc};
 use clap::ArgMatches;
 use cli_table::{
 	format::{
-		Align,
-		Border,
-		CellFormat,
-		Color,
-		HorizontalLine,
-		Separator,
-		TableFormat,
-		VerticalLine,
+		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
 	},
-	Cell,
-	Row,
-	Table,
+	Cell, Row, Table,
 };
 use juno::{models::Value, JunoModule};
 use std::collections::HashMap;
@@ -75,7 +66,7 @@ pub async fn list_processes(config: ConfigValue) {
 		Cell::new("Crashes", header_format),
 		Cell::new("Created at", header_format),
 	])];
-	for process in processes.into_iter() {
+	for process in processes.iter() {
 		let process = process.as_object().unwrap();
 		table_data.push(Row::new(vec![
 			Cell::new(
@@ -301,7 +292,7 @@ pub async fn get_module_info(config: ConfigValue, args: &ArgMatches<'_>) {
 		));
 		return;
 	}
-	let module = module.as_object().unwrap();
+	let _module = module.as_object().unwrap();
 }
 
 fn get_date_time(timestamp: i64) -> String {
