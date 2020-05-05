@@ -60,15 +60,15 @@ jobs:
         uses: actions/upload-artifact@v1
         if: matrix.rust == 'stable' && matrix.os != 'windows-latest'
         with:
-          name: juno-${{matrix.os}}
-          path: target/release/juno
+          name: guillotine-${{matrix.os}}
+          path: target/release/guillotine
       
       - name: Upload Artifact (Windows)
         uses: actions/upload-artifact@v1
         if: matrix.rust == 'stable' && matrix.os == 'windows-latest'
         with:
-          name: juno-${{matrix.os}}
-          path: target/release/juno.exe
+          name: guillotine-${{matrix.os}}
+          path: target/release/guillotine.exe
 
       - name: Cargo test
         uses: actions-rs/cargo@v1

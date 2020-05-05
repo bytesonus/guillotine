@@ -40,15 +40,15 @@ jobs:
         uses: actions/upload-artifact@v1
         if: matrix.rust == 'stable' && matrix.os != 'windows-latest'
         with:
-          name: juno-${{matrix.os}}
-          path: target/release/juno
+          name: guillotine-${{matrix.os}}
+          path: target/release/guillotine
       
       - name: Upload Artifact (Windows)
         uses: actions/upload-artifact@v1
         if: matrix.rust == 'stable' && matrix.os == 'windows-latest'
         with:
-          name: juno-${{matrix.os}}
-          path: target/release/juno.exe
+          name: guillotine-${{matrix.os}}
+          path: target/release/guillotine.exe
 
   release-master: # Publish release on push to master
     if: github.ref == 'refs/heads/master'
@@ -68,26 +68,26 @@ jobs:
       - name: Download Windows Artifact
         uses: actions/download-artifact@v1
         with:
-          name: juno-windows-latest
+          name: guillotine-windows-latest
           path: release/windows
 
       - name: Download MacOS Artifact
         uses: actions/download-artifact@v1
         with:
-          name: juno-macos-latest
+          name: guillotine-macos-latest
           path: release/macos
 
       - name: Download Linux Artifact
         uses: actions/download-artifact@v1
         with:
-          name: juno-ubuntu-latest
+          name: guillotine-ubuntu-latest
           path: release/linux
       
       - name: Rename Artifacts
         run: |
-          mv release/windows/juno.exe release/windows/juno-${{steps.version_check.outputs.releaseVersion}}-windows.exe
-          mv release/macos/juno release/macos/juno-${{steps.version_check.outputs.releaseVersion}}-macos
-          mv release/linux/juno release/linux/juno-${{steps.version_check.outputs.releaseVersion}}-linux
+          mv release/windows/guillotine.exe release/windows/guillotine-${{steps.version_check.outputs.releaseVersion}}-windows.exe
+          mv release/macos/guillotine release/macos/guillotine-${{steps.version_check.outputs.releaseVersion}}-macos
+          mv release/linux/guillotine release/linux/guillotine-${{steps.version_check.outputs.releaseVersion}}-linux
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
@@ -117,26 +117,26 @@ jobs:
       - name: Download Windows Artifact
         uses: actions/download-artifact@v1
         with:
-          name: juno-windows-latest
+          name: guillotine-windows-latest
           path: release/windows
 
       - name: Download MacOS Artifact
         uses: actions/download-artifact@v1
         with:
-          name: juno-macos-latest
+          name: guillotine-macos-latest
           path: release/macos
 
       - name: Download Linux Artifact
         uses: actions/download-artifact@v1
         with:
-          name: juno-ubuntu-latest
+          name: guillotine-ubuntu-latest
           path: release/linux
       
       - name: Rename Artifacts
         run: |
-          mv release/windows/juno.exe release/windows/juno-${{steps.version_check.outputs.releaseVersion}}-windows.exe
-          mv release/macos/juno release/macos/juno-${{steps.version_check.outputs.releaseVersion}}-macos
-          mv release/linux/juno release/linux/juno-${{steps.version_check.outputs.releaseVersion}}-linux
+          mv release/windows/guillotine.exe release/windows/guillotine-${{steps.version_check.outputs.releaseVersion}}-windows.exe
+          mv release/macos/guillotine release/macos/guillotine-${{steps.version_check.outputs.releaseVersion}}-macos
+          mv release/linux/guillotine release/linux/guillotine-${{steps.version_check.outputs.releaseVersion}}-linux
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
