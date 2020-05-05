@@ -3,6 +3,7 @@ name = "guillotine"
 version = "0.1.0"
 authors = ["Rakshith Ravi <rakshith.ravi@gmx.com>"]
 edition = "2018"
+description = "Swift, painless execution (of modules)"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

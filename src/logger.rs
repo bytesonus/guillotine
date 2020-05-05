@@ -1,5 +1,6 @@
 use colored::Colorize;
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum LogLevel {
 	Verbose = 1,
@@ -21,18 +22,22 @@ impl LogLevel {
 	}
 }
 
+#[allow(dead_code)]
 pub fn verbose(data: &str) {
 	write(LogLevel::Verbose, data);
 }
 
+#[allow(dead_code)]
 pub fn info(data: &str) {
 	write(LogLevel::Info, data);
 }
 
+#[allow(dead_code)]
 pub fn debug(data: &str) {
 	write(LogLevel::Debug, data);
 }
 
+#[allow(dead_code)]
 pub fn warn(data: &str) {
 	write(LogLevel::Warn, data);
 }

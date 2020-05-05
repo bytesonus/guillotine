@@ -30,7 +30,7 @@ async fn main() {
 	let args = App::new(misc::APP_NAME)
 		.version(misc::APP_VERSION)
 		.author(misc::APP_AUTHORS)
-		.about("Swift, painless execution")
+		.about(misc::APP_ABOUT)
 		.subcommand(
 			SubCommand::with_name("run").about("Run the application with a given config file"),
 		)
@@ -38,6 +38,21 @@ async fn main() {
 			SubCommand::with_name("list-processes")
 				.alias("lp")
 				.about("List the running processes and their statuses"),
+		)
+		.subcommand(
+			SubCommand::with_name("list-modules")
+				.alias("lm")
+				.about("List the modules connected and their statuses"),
+		)
+		.subcommand(
+			SubCommand::with_name("info")
+				.about("Get information about a process / module")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				),
 		)
 		.arg(
 			Arg::with_name("config")
@@ -73,12 +88,10 @@ async fn main() {
 	let config = config_result.unwrap();
 
 	match args.subcommand() {
-		("run", Some(_)) => {
-			runner::run(config).await;
-		}
-		("list-processes", Some(_)) => {
-			cli::list_processes(config).await;
-		}
+		("run", Some(_)) => runner::run(config).await,
+		("list-processes", Some(_)) => cli::list_processes(config).await,
+		("list-modules", Some(_)) => cli::list_modules(config).await,
+		("info", Some(args)) => cli::get_module_info(config, args).await,
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}
 }

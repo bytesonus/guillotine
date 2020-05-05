@@ -45,6 +45,7 @@ pub async fn run(config: ConfigValue) {
 					format!("{}", port),
 					"--bind-addr".to_string(),
 					bind_addr.clone(),
+					"-VVV".to_string(),
 				],
 			),
 		)

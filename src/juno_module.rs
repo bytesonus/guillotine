@@ -80,7 +80,7 @@ fn list_processes(_: HashMap<String, Value>) -> Value {
 				);
 				map.insert(
 					String::from("restarts"),
-					Value::Number(Number::PosInt(process.restarts)),
+					Value::Number(Number::NegInt(process.restarts)),
 				);
 				map.insert(
 					String::from("uptime"),
