@@ -66,7 +66,7 @@ pub async fn list_processes(config: ConfigValue) {
 		Cell::new("Crashes", header_format),
 		Cell::new("Created at", header_format),
 	])];
-	for process in processes.into_iter() {
+	for process in processes.iter() {
 		let process = process.as_object().unwrap();
 		table_data.push(Row::new(vec![
 			Cell::new(
