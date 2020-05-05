@@ -1,6 +1,8 @@
+use crate::logger;
+
 use serde_derive::Deserialize;
 use std::{
-	process::{Child, Command},
+	process::{Child, Command, Stdio},
 	time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -96,6 +98,8 @@ impl ProcessRunner {
 			Command::new(&self.config.command)
 				.args(self.config.args.as_ref().unwrap_or(&vec![]))
 				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone())
+				.stdin(Stdio::null())
+				.stdout(Stdio::null())
 				.spawn()
 		} else {
 			Command::new(self.config.interpreter.as_ref().unwrap())
@@ -115,6 +119,65 @@ impl ProcessRunner {
 		self.restarts += 1;
 		self.status = ModuleRunningStatus::Running;
 		self.last_started_at = get_current_time();
+	}
+
+	#[cfg(target_family = "unix")]
+	pub fn send_quit_signal(&mut self) {
+		if self.process.is_none() {
+			return;
+		}
+		// Send SIGINT to a process in unix
+		use nix::{
+			sys::signal::{self, Signal},
+			unistd::Pid,
+		};
+
+		// send SIGINT to the child
+		let result = signal::kill(
+			Pid::from_raw(self.process.as_ref().unwrap().id() as i32),
+			Signal::SIGINT,
+		);
+		if result.is_err() {
+			logger::error(&format!(
+				"Error sending SIGINT to child process '{}': {}",
+				self.config.name,
+				result.unwrap_err()
+			));
+		}
+	}
+
+	#[cfg(target_family = "windows")]
+	pub fn send_quit_signal(&mut self) {
+		if self.process.is_none() {
+			return;
+		}
+		// Send ctrl-c event to a process in windows
+		// Ref: https://blog.codetitans.pl/post/sending-ctrl-c-signal-to-another-application-on-windows/
+		use winapi::um::{
+			consoleapi::SetConsoleCtrlHandler,
+			wincon::{AttachConsole, FreeConsole, GenerateConsoleCtrlEvent},
+		};
+
+		let pid = self.process.as_ref().unwrap().id();
+		const CTRL_C_EVENT: u32 = 0;
+
+		unsafe {
+			FreeConsole();
+			if AttachConsole(pid) > 0 {
+				SetConsoleCtrlHandler(None, 1);
+				GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+			}
+		}
+	}
+
+	pub fn kill(&mut self) {
+		if self.process.is_none() {
+			return;
+		}
+		let result = self.process.as_mut().unwrap().kill();
+		if result.is_err() {
+			logger::error(&format!("Error killing process: {}", result.unwrap_err()));
+		}
 	}
 
 	pub fn copy(&self) -> ProcessRunner {

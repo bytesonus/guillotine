@@ -1,10 +1,10 @@
 use crate::{
-	juno_module,
+	juno_module, logger,
 	misc::GuillotineMessage,
 	parser::ConfigValue,
 	process_runner::{ModuleConfig, ProcessRunner},
 };
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_std::{
 	fs::{self, DirEntry},
@@ -12,12 +12,18 @@ use async_std::{
 	net::TcpStream,
 	path::Path,
 	prelude::*,
+	sync::Mutex,
+	task,
 };
 use futures::{
 	channel::mpsc::unbounded,
 	future::{self, Either},
 };
 use futures_timer::Delay;
+
+lazy_static! {
+	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
+}
 
 pub async fn run(config: ConfigValue) {
 	let juno_path = config.juno.path.clone();
@@ -74,6 +80,10 @@ pub async fn run(config: ConfigValue) {
 	keep_processes_alive(juno_process, config, tracked_modules).await;
 }
 
+pub async fn on_exit() {
+	*CLOSE_FLAG.lock().await = true;
+}
+
 async fn get_module_from_path(
 	expected_pid: u64,
 	path: Result<DirEntry, Error>,
@@ -115,11 +125,14 @@ async fn keep_processes_alive(
 
 	let mut timer_future = Delay::new(Duration::from_millis(100));
 	let mut command_future = command_receiver.next();
-
 	loop {
-		let selection = future::select(timer_future, command_future);
-		match selection.await {
+		let selection = future::select(timer_future, command_future).await;
+		match selection {
 			Either::Left((_, next_command_future)) => {
+				if *CLOSE_FLAG.lock().await {
+					break;
+				}
+
 				// Timer expired
 				command_future = next_command_future;
 				timer_future = Delay::new(Duration::from_millis(100));
@@ -158,6 +171,56 @@ async fn keep_processes_alive(
 			}
 		}
 	}
+
+	// Execute exit actions
+	// Kill all modules first
+	processes.iter_mut().for_each(|module| {
+		logger::info(&format!("Quitting process: {}", module.config.name));
+		module.send_quit_signal();
+	});
+	let quit_time = get_current_millis();
+	loop {
+		// Give the processes some time to die.
+		task::sleep(Duration::from_millis(100)).await;
+
+		// If all of the processes are not running, then break
+		if processes
+			.iter_mut()
+			.all(|module| !module.is_process_running())
+		{
+			break;
+		}
+		// If some of the processes are running, check if they've been given enough time.
+		if get_current_millis() > quit_time + 1000 {
+			// They've been trying to quit for more than 1 second. Kill them all and quit
+			processes.iter_mut().for_each(|module| {
+				logger::info(&format!("Killing process: {}", module.config.name));
+				module.kill();
+			});
+			break;
+		}
+	}
+
+	// Now quit juno similarly
+	logger::info(&format!("Quitting process: {}", juno_process.config.name));
+	juno_process.send_quit_signal();
+	let quit_time = get_current_millis();
+	loop {
+		// Give the process some time to die.
+		task::sleep(Duration::from_millis(100)).await;
+
+		// If the process is not running, then break
+		if !juno_process.is_process_running() {
+			break;
+		}
+		// If the processes is running, check if it's been given enough time.
+		if get_current_millis() > quit_time + 1000 {
+			// It's been trying to quit for more than 1 second. Kill it and quit
+			logger::info(&format!("Killing process: {}", juno_process.config.name));
+			juno_process.kill();
+			break;
+		}
+	}
 }
 
 async fn ensure_juno_initialized(config: ConfigValue) {
@@ -193,4 +256,11 @@ async fn connect_to_unix_socket(socket_path: &str) -> Result<(), Error> {
 #[cfg(target_family = "windows")]
 async fn connect_to_unix_socket(_: &str) -> Result<(), Error> {
 	panic!("Unix sockets are not supported on Windows");
+}
+
+fn get_current_millis() -> u128 {
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.expect("Time went backwards. Wtf?")
+		.as_millis()
 }

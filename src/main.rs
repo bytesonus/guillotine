@@ -8,11 +8,18 @@ extern crate chrono;
 extern crate clap;
 extern crate cli_table;
 extern crate colored;
+extern crate ctrlc;
 extern crate futures;
 extern crate futures_timer;
 extern crate juno;
 extern crate serde;
 extern crate serde_json;
+
+#[cfg(target_family = "unix")]
+extern crate nix;
+
+#[cfg(target_family = "windows")]
+extern crate winapi;
 
 mod cli;
 mod juno_module;
@@ -22,8 +29,9 @@ mod parser;
 mod process_runner;
 mod runner;
 
-use async_std::{fs, path::Path};
+use async_std::{fs, path::Path, task};
 use clap::{App, Arg, SubCommand};
+use futures::future;
 
 #[async_std::main]
 async fn main() {
@@ -66,6 +74,8 @@ async fn main() {
 		)
 		.get_matches();
 
+	ctrlc::set_handler(|| task::block_on(on_exit())).expect("Error setting the CtrlC handler");
+
 	let config_path = Path::new(args.value_of("config").unwrap_or("./config.json"));
 
 	if !config_path.exists().await {
@@ -94,4 +104,9 @@ async fn main() {
 		("info", Some(args)) => cli::get_module_info(config, args).await,
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}
+}
+
+async fn on_exit() {
+	logger::info("Recieved exit code. Closing all modules");
+	future::join(runner::on_exit(), cli::on_exit()).await;
 }
