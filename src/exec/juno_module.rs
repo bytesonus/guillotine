@@ -1,6 +1,6 @@
 use crate::{
 	exec::process::ProcessRunner,
-	models::{ConfigValue, GuillotineMessage, ModuleRunningStatus},
+	models::{GuillotineSpecificConfig, GuillotineMessage, ModuleRunningStatus},
 	utils::constants,
 };
 use std::{collections::HashMap, sync::Mutex};
@@ -20,7 +20,7 @@ lazy_static! {
 }
 
 pub async fn setup_module(
-	config: ConfigValue,
+	config: GuillotineSpecificConfig,
 	sender: UnboundedSender<GuillotineMessage>,
 ) -> JunoModule {
 	let mut message_sender = MESSAGE_SENDER.lock().unwrap();

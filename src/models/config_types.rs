@@ -1,16 +1,16 @@
 use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
-pub struct ConsolidatedConfigData {
+pub struct GuillotineConfig {
 	pub version: String,
-	pub configs: Option<Vec<PerEnvConfig>>,
-	pub config: Option<ConfigValue>,
+	pub configs: Option<Vec<GuillotinePerEnvConfig>>,
+	pub config: Option<GuillotineSpecificConfig>,
 }
 
 #[derive(Deserialize)]
-pub struct PerEnvConfig {
+pub struct GuillotinePerEnvConfig {
 	pub env: EnvRequirements,
-	pub config: ConfigValue,
+	pub config: GuillotineSpecificConfig,
 }
 
 #[derive(Deserialize)]
@@ -21,10 +21,11 @@ pub struct EnvRequirements {
 	pub target_endian: Option<String>,
 }
 
+// Config specific to this environment
 #[derive(Deserialize, Clone)]
-pub struct ConfigValue {
+pub struct GuillotineSpecificConfig {
 	pub juno: JunoConfig,
-	pub modules: ModuleConfig,
+	pub modules: Option<GuillotineModuleConfig>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -37,9 +38,9 @@ pub struct JunoConfig {
 }
 
 #[derive(Deserialize, Clone)]
-pub struct ModuleConfig {
+pub struct GuillotineModuleConfig {
 	pub path: String,
-	pub logs: String,
+	pub logs: Option<String>,
 }
 
 #[derive(Debug, Clone)]

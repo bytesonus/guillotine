@@ -1,17 +1,26 @@
-use crate::{logger, models::ConfigValue, utils::constants};
+use crate::{logger, models::GuillotineSpecificConfig, utils::constants};
 
 use chrono::{prelude::*, Utc};
 use clap::ArgMatches;
 use cli_table::{
 	format::{
-		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
+		Align,
+		Border,
+		CellFormat,
+		Color,
+		HorizontalLine,
+		Separator,
+		TableFormat,
+		VerticalLine,
 	},
-	Cell, Row, Table,
+	Cell,
+	Row,
+	Table,
 };
 use juno::{models::Value, JunoModule};
 use std::collections::HashMap;
 
-pub async fn list_processes(config: ConfigValue) {
+pub async fn list_processes(config: GuillotineSpecificConfig) {
 	let mut module = if config.juno.connection_type == "unix_socket" {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)
@@ -167,7 +176,7 @@ pub async fn list_processes(config: ConfigValue) {
 	table.unwrap().print_stdout().unwrap();
 }
 
-pub async fn list_modules(config: ConfigValue) {
+pub async fn list_modules(config: GuillotineSpecificConfig) {
 	let mut module = if config.juno.connection_type == "unix_socket" {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)
@@ -251,7 +260,7 @@ pub async fn list_modules(config: ConfigValue) {
 	table.unwrap().print_stdout().unwrap();
 }
 
-pub async fn get_module_info(config: ConfigValue, args: &ArgMatches<'_>) {
+pub async fn get_module_info(config: GuillotineSpecificConfig, args: &ArgMatches<'_>) {
 	let mut module = if config.juno.connection_type == "unix_socket" {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)

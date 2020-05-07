@@ -1,6 +1,6 @@
 use crate::{
 	exec::{juno_module, process::ProcessRunner},
-	models::{ConfigValue, GuillotineMessage, ModuleRunnerConfig},
+	models::{GuillotineSpecificConfig, GuillotineMessage, ModuleRunnerConfig},
 	utils::logger,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -24,7 +24,7 @@ lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
 }
 
-pub async fn run(config: ConfigValue) {
+pub async fn run(config: GuillotineSpecificConfig) {
 	let juno_path = config.juno.path.clone();
 	let mut pid = 0;
 
@@ -56,19 +56,25 @@ pub async fn run(config: ConfigValue) {
 		)
 	};
 
-	let mut tracked_modules = Vec::new();
-	let modules_path = Path::new(&config.modules.path);
-	if modules_path.exists().await && modules_path.is_dir().await {
-		// Get all modules and add them to the list
-		let mut dir_iterator = modules_path.read_dir().await.unwrap();
-		while let Some(path) = dir_iterator.next().await {
-			let mut module = get_module_from_path(pid, path).await;
-			if module.is_some() {
-				tracked_modules.push(module.take().unwrap());
-				pid += 1;
+	let tracked_modules = match &config.modules {
+		Some(modules) => {
+			let mut tracked_modules = Vec::new();
+			let modules_path = Path::new(&modules.path);
+			if modules_path.exists().await && modules_path.is_dir().await {
+				// Get all modules and add them to the list
+				let mut dir_iterator = modules_path.read_dir().await.unwrap();
+				while let Some(path) = dir_iterator.next().await {
+					let mut module = get_module_from_path(pid, path).await;
+					if module.is_some() {
+						tracked_modules.push(module.take().unwrap());
+						pid += 1;
+					}
+				}
 			}
+			Some(tracked_modules)
 		}
-	}
+		None => None,
+	};
 
 	// Spawn juno before spawing any modules
 	while !juno_process.is_process_running() {
@@ -115,8 +121,8 @@ async fn get_module_from_path(
 
 async fn keep_processes_alive(
 	mut juno_process: ProcessRunner,
-	juno_config: ConfigValue,
-	mut processes: Vec<ProcessRunner>,
+	juno_config: GuillotineSpecificConfig,
+	mut processes: Option<Vec<ProcessRunner>>,
 ) {
 	// Initialize the guillotine juno module
 	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
@@ -141,6 +147,10 @@ async fn keep_processes_alive(
 					juno_process.respawn();
 				}
 
+				if processes.is_none() {
+					continue;
+				}
+				let processes = processes.as_mut().unwrap();
 				for module in processes.iter_mut() {
 					// If a module isn't running, respawn it. Simple.
 					if !module.is_process_running() {
@@ -157,9 +167,13 @@ async fn keep_processes_alive(
 					Some(cmd) => {
 						if let GuillotineMessage::ListProcesses(sender) = cmd {
 							let mut runners = vec![juno_process.copy()];
-							processes
-								.iter()
-								.for_each(|process| runners.push(process.copy()));
+							if processes.is_some() {
+								processes
+									.as_ref()
+									.unwrap()
+									.iter()
+									.for_each(|process| runners.push(process.copy()));
+							}
 							sender.send(runners).unwrap();
 						}
 					}
@@ -173,30 +187,33 @@ async fn keep_processes_alive(
 
 	// Execute exit actions
 	// Kill all modules first
-	processes.iter_mut().for_each(|module| {
-		logger::info(&format!("Quitting process: {}", module.config.name));
-		module.send_quit_signal();
-	});
-	let quit_time = get_current_millis();
-	loop {
-		// Give the processes some time to die.
-		task::sleep(Duration::from_millis(100)).await;
-
-		// If all of the processes are not running, then break
-		if processes
-			.iter_mut()
-			.all(|module| !module.is_process_running())
-		{
-			break;
-		}
-		// If some of the processes are running, check if they've been given enough time.
-		if get_current_millis() > quit_time + 1000 {
-			// They've been trying to quit for more than 1 second. Kill them all and quit
-			processes.iter_mut().for_each(|module| {
-				logger::info(&format!("Killing process: {}", module.config.name));
-				module.kill();
-			});
-			break;
+	if processes.is_some() {
+		processes.as_mut().unwrap().iter_mut().for_each(|module| {
+			logger::info(&format!("Quitting process: {}", module.config.name));
+			module.send_quit_signal();
+		});
+		let quit_time = get_current_millis();
+		loop {
+			// Give the processes some time to die.
+			task::sleep(Duration::from_millis(100)).await;
+			// If all of the processes are not running, then break
+			if processes
+				.as_mut()
+				.unwrap()
+				.iter_mut()
+				.all(|module| !module.is_process_running())
+			{
+				break;
+			}
+			// If some of the processes are running, check if they've been given enough time.
+			if get_current_millis() > quit_time + 1000 {
+				// They've been trying to quit for more than 1 second. Kill them all and quit
+				processes.unwrap().iter_mut().for_each(|module| {
+					logger::info(&format!("Killing process: {}", module.config.name));
+					module.kill();
+				});
+				break;
+			}
 		}
 	}
 
@@ -222,7 +239,7 @@ async fn keep_processes_alive(
 	}
 }
 
-async fn ensure_juno_initialized(config: ConfigValue) {
+async fn ensure_juno_initialized(config: GuillotineSpecificConfig) {
 	if config.juno.port.is_some() {
 		let port = config.juno.port.unwrap();
 		// Keep attempting to connect to the port until you can connect
