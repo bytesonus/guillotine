@@ -71,6 +71,7 @@ impl ProcessRunner {
 		if self.process.is_some() && self.is_process_running() {
 			self.process.as_mut().unwrap().kill().unwrap();
 		}
+		logger::info(&format!("Respawning '{}'", self.config.name));
 
 		let child = if self.config.interpreter.is_none() {
 			let mut command = Command::new(&self.config.command);
@@ -133,10 +134,10 @@ impl ProcessRunner {
 			command.spawn()
 		};
 		if let Err(err) = child {
-			println!(
+			logger::error(&format!(
 				"Error spawing child process '{}': {}",
 				self.config.name, err
-			);
+			));
 			return;
 		}
 		self.process = Some(child.unwrap());
