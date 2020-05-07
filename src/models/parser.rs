@@ -1,9 +1,9 @@
-use super::{ConfigData, ConfigValue, EnvRequirements};
+use super::{ConsolidatedConfigData, ConfigValue, EnvRequirements};
 use async_std::{fs, path::Path};
 use serde_json::{Error, Result};
 
 pub async fn select_config(input: String) -> Result<ConfigValue> {
-	let envs: ConfigData = serde_json::from_str(&input)?;
+	let envs: ConsolidatedConfigData = serde_json::from_str(&input)?;
 	if envs.config.is_some() {
 		parse_config(envs.config.unwrap()).await
 	} else {
@@ -88,7 +88,13 @@ async fn parse_config(mut input: ConfigValue) -> Result<ConfigValue> {
 		.unwrap()
 		.to_string();
 
-	input.modules = fs::canonicalize(input.modules)
+	input.modules.path = fs::canonicalize(input.modules.path)
+		.await
+		.unwrap()
+		.to_str()
+		.unwrap()
+		.to_string();
+	input.modules.logs = fs::canonicalize(input.modules.logs)
 		.await
 		.unwrap()
 		.to_str()

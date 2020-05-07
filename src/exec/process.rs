@@ -1,6 +1,6 @@
 use crate::{
 	logger,
-	models::{ModuleConfig, ModuleRunningStatus},
+	models::{ModuleRunnerConfig, ModuleRunningStatus},
 };
 use std::{
 	process::{Child, Command, Stdio},
@@ -11,7 +11,7 @@ use std::{
 pub struct ProcessRunner {
 	process: Option<Child>,
 	pub module_id: u64,
-	pub config: ModuleConfig,
+	pub config: ModuleRunnerConfig,
 	pub status: ModuleRunningStatus,
 	pub restarts: i64,
 	pub uptime: u64,
@@ -21,7 +21,7 @@ pub struct ProcessRunner {
 }
 
 impl ProcessRunner {
-	pub fn new(module_id: u64, config: ModuleConfig) -> Self {
+	pub fn new(module_id: u64, config: ModuleRunnerConfig) -> Self {
 		ProcessRunner {
 			module_id,
 			process: None,

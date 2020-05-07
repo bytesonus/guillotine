@@ -1,14 +1,14 @@
 use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
-pub struct ConfigData {
+pub struct ConsolidatedConfigData {
 	pub version: String,
-	pub configs: Option<Vec<EnvConfig>>,
+	pub configs: Option<Vec<PerEnvConfig>>,
 	pub config: Option<ConfigValue>,
 }
 
 #[derive(Deserialize)]
-pub struct EnvConfig {
+pub struct PerEnvConfig {
 	pub env: EnvRequirements,
 	pub config: ConfigValue,
 }
@@ -24,7 +24,7 @@ pub struct EnvRequirements {
 #[derive(Deserialize, Clone)]
 pub struct ConfigValue {
 	pub juno: JunoConfig,
-	pub modules: String,
+	pub modules: ModuleConfig,
 }
 
 #[derive(Deserialize, Clone)]
@@ -36,6 +36,12 @@ pub struct JunoConfig {
 	pub socket_path: Option<String>,
 }
 
+#[derive(Deserialize, Clone)]
+pub struct ModuleConfig {
+	pub path: String,
+	pub logs: String,
+}
+
 #[derive(Debug, Clone)]
 pub enum ModuleRunningStatus {
 	Running,
@@ -43,7 +49,7 @@ pub enum ModuleRunningStatus {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct ModuleConfig {
+pub struct ModuleRunnerConfig {
 	pub name: String,
 	pub command: String,
 	pub interpreter: Option<String>,
@@ -51,9 +57,9 @@ pub struct ModuleConfig {
 	pub envs: Option<Vec<(String, String)>>,
 }
 
-impl ModuleConfig {
+impl ModuleRunnerConfig {
 	pub fn juno_default(path: String, args: Vec<String>) -> Self {
-		ModuleConfig {
+		ModuleRunnerConfig {
 			name: "Juno".to_string(),
 			command: path,
 			interpreter: None,

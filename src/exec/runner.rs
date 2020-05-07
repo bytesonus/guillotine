@@ -1,6 +1,6 @@
 use crate::{
 	exec::{juno_module, process::ProcessRunner},
-	models::{ConfigValue, GuillotineMessage, ModuleConfig},
+	models::{ConfigValue, GuillotineMessage, ModuleRunnerConfig},
 	utils::logger,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -32,7 +32,7 @@ pub async fn run(config: ConfigValue) {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		ProcessRunner::new(
 			pid,
-			ModuleConfig::juno_default(
+			ModuleRunnerConfig::juno_default(
 				juno_path,
 				vec!["--socket-location".to_string(), socket_path.clone()],
 			),
@@ -43,7 +43,7 @@ pub async fn run(config: ConfigValue) {
 
 		ProcessRunner::new(
 			pid,
-			ModuleConfig::juno_default(
+			ModuleRunnerConfig::juno_default(
 				juno_path,
 				vec![
 					"--port".to_string(),
@@ -57,7 +57,7 @@ pub async fn run(config: ConfigValue) {
 	};
 
 	let mut tracked_modules = Vec::new();
-	let modules_path = Path::new(&config.modules);
+	let modules_path = Path::new(&config.modules.path);
 	if modules_path.exists().await && modules_path.is_dir().await {
 		// Get all modules and add them to the list
 		let mut dir_iterator = modules_path.read_dir().await.unwrap();
@@ -103,7 +103,7 @@ async fn get_module_from_path(
 	}
 	let module_json_contents = module_json_contents.unwrap();
 
-	let config: Result<ModuleConfig, serde_json::Error> =
+	let config: Result<ModuleRunnerConfig, serde_json::Error> =
 		serde_json::from_str(&module_json_contents);
 
 	if config.is_err() {

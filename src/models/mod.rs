@@ -5,5 +5,6 @@ pub mod parser;
 
 pub use cli_messages::GuillotineMessage;
 pub use config_types::{
-	ConfigData, ConfigValue, EnvRequirements, ModuleConfig, ModuleRunningStatus,
+	ConfigValue, ConsolidatedConfigData, EnvRequirements, ModuleConfig, ModuleRunnerConfig,
+	ModuleRunningStatus, PerEnvConfig,
 };
