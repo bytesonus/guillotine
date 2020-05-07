@@ -1,8 +1,7 @@
 use crate::{
-	juno_module, logger,
-	misc::GuillotineMessage,
-	parser::ConfigValue,
-	process_runner::{ModuleConfig, ProcessRunner},
+	exec::{juno_module, process::ProcessRunner},
+	models::{ConfigValue, GuillotineMessage, ModuleConfig},
+	utils::logger,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

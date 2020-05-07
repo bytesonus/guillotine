@@ -22,12 +22,13 @@ extern crate nix;
 extern crate winapi;
 
 mod cli;
-mod juno_module;
-mod logger;
-mod misc;
-mod parser;
-mod process_runner;
-mod runner;
+mod exec;
+mod models;
+mod utils;
+
+use exec::runner;
+use models::parser;
+use utils::{constants, logger};
 
 use async_std::{fs, path::Path, task};
 use clap::{App, Arg, SubCommand};
@@ -35,10 +36,10 @@ use futures::future;
 
 #[async_std::main]
 async fn main() {
-	let args = App::new(misc::APP_NAME)
-		.version(misc::APP_VERSION)
-		.author(misc::APP_AUTHORS)
-		.about(misc::APP_ABOUT)
+	let args = App::new(constants::APP_NAME)
+		.version(constants::APP_VERSION)
+		.author(constants::APP_AUTHORS)
+		.about(constants::APP_ABOUT)
 		.subcommand(
 			SubCommand::with_name("run").about("Run the application with a given config file"),
 		)

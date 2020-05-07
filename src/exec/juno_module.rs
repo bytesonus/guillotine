@@ -1,8 +1,7 @@
 use crate::{
-	misc,
-	misc::GuillotineMessage,
-	parser::ConfigValue,
-	process_runner::{ModuleRunningStatus, ProcessRunner},
+	exec::process::ProcessRunner,
+	models::{ConfigValue, GuillotineMessage, ModuleRunningStatus},
+	utils::constants,
 };
 use std::{collections::HashMap, sync::Mutex};
 
@@ -39,7 +38,7 @@ pub async fn setup_module(
 	};
 
 	module
-		.initialize(misc::APP_NAME, misc::APP_VERSION, HashMap::new())
+		.initialize(constants::APP_NAME, constants::APP_VERSION, HashMap::new())
 		.await
 		.expect("Could not initialize Guillotine Juno Module");
 

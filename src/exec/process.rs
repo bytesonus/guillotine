@@ -1,37 +1,11 @@
-use crate::logger;
-
-use serde_derive::Deserialize;
+use crate::{
+	logger,
+	models::{ModuleConfig, ModuleRunningStatus},
+};
 use std::{
 	process::{Child, Command, Stdio},
 	time::{SystemTime, UNIX_EPOCH},
 };
-
-#[derive(Debug, Clone)]
-pub enum ModuleRunningStatus {
-	Running,
-	Offline,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct ModuleConfig {
-	pub name: String,
-	pub command: String,
-	pub interpreter: Option<String>,
-	pub args: Option<Vec<String>>,
-	pub envs: Option<Vec<(String, String)>>,
-}
-
-impl ModuleConfig {
-	pub fn juno_default(path: String, args: Vec<String>) -> Self {
-		ModuleConfig {
-			name: "Juno".to_string(),
-			command: path,
-			interpreter: None,
-			args: Some(args),
-			envs: None,
-		}
-	}
-}
 
 #[derive(Debug)]
 pub struct ProcessRunner {
@@ -180,7 +154,7 @@ impl ProcessRunner {
 		}
 	}
 
-	pub fn copy(&self) -> ProcessRunner {
+	pub fn copy(&self) -> Self {
 		ProcessRunner {
 			module_id: self.module_id,
 			process: None,

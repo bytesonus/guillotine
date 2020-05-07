@@ -1,4 +1,4 @@
-use crate::{logger, misc, parser::ConfigValue};
+use crate::{logger, models::ConfigValue, utils::constants};
 
 use chrono::{prelude::*, Utc};
 use clap::ArgMatches;
@@ -23,14 +23,17 @@ pub async fn list_processes(config: ConfigValue) {
 
 	module
 		.initialize(
-			&format!("{}-cli", misc::APP_NAME),
-			misc::APP_VERSION,
+			&format!("{}-cli", constants::APP_NAME),
+			constants::APP_VERSION,
 			HashMap::new(),
 		)
 		.await
 		.unwrap();
 	let processes = module
-		.call_function(&format!("{}.listProcesses", misc::APP_NAME), HashMap::new())
+		.call_function(
+			&format!("{}.listProcesses", constants::APP_NAME),
+			HashMap::new(),
+		)
 		.await
 		.unwrap();
 	if !processes.is_array() {
@@ -176,8 +179,8 @@ pub async fn list_modules(config: ConfigValue) {
 
 	module
 		.initialize(
-			&format!("{}-cli", misc::APP_NAME),
-			misc::APP_VERSION,
+			&format!("{}-cli", constants::APP_NAME),
+			constants::APP_VERSION,
 			HashMap::new(),
 		)
 		.await
@@ -266,8 +269,8 @@ pub async fn get_module_info(config: ConfigValue, args: &ArgMatches<'_>) {
 
 	module
 		.initialize(
-			&format!("{}-cli", misc::APP_NAME),
-			misc::APP_VERSION,
+			&format!("{}-cli", constants::APP_NAME),
+			constants::APP_VERSION,
 			HashMap::new(),
 		)
 		.await
