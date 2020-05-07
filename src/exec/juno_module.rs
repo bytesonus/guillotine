@@ -1,6 +1,6 @@
 use crate::{
 	exec::process::ProcessRunner,
-	models::{GuillotineSpecificConfig, GuillotineMessage, ModuleRunningStatus},
+	models::{GuillotineMessage, GuillotineSpecificConfig, ModuleRunningStatus},
 	utils::constants,
 };
 use std::{collections::HashMap, sync::Mutex};

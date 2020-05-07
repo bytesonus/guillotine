@@ -1,6 +1,6 @@
 use crate::{
 	exec::{juno_module, process::ProcessRunner},
-	models::{GuillotineSpecificConfig, GuillotineMessage, ModuleRunnerConfig},
+	models::{GuillotineMessage, GuillotineSpecificConfig, ModuleRunnerConfig},
 	utils::logger,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -50,7 +50,6 @@ pub async fn run(config: GuillotineSpecificConfig) {
 					format!("{}", port),
 					"--bind-addr".to_string(),
 					bind_addr.clone(),
-					"-VVV".to_string(),
 				],
 			),
 		)
@@ -58,15 +57,26 @@ pub async fn run(config: GuillotineSpecificConfig) {
 
 	let tracked_modules = match &config.modules {
 		Some(modules) => {
+			if let Some(log_dir) = &modules.logs {
+				let main_dir = Path::new(log_dir);
+				if !main_dir.exists().await {
+					fs::create_dir(&main_dir).await.unwrap();
+				}
+				let sub_dir = main_dir.join(&juno_process.config.name);
+				if !sub_dir.exists().await {
+					fs::create_dir(&sub_dir).await.unwrap();
+				}
+				juno_process.log_dir = Some(String::from(sub_dir.to_str().unwrap()));
+			}
+
 			let mut tracked_modules = Vec::new();
 			let modules_path = Path::new(&modules.path);
 			if modules_path.exists().await && modules_path.is_dir().await {
 				// Get all modules and add them to the list
 				let mut dir_iterator = modules_path.read_dir().await.unwrap();
 				while let Some(path) = dir_iterator.next().await {
-					let mut module = get_module_from_path(pid, path).await;
-					if module.is_some() {
-						tracked_modules.push(module.take().unwrap());
+					if let Some(module) = get_module_from_path(pid, path, &modules.logs).await {
+						tracked_modules.push(module);
 						pid += 1;
 					}
 				}
@@ -92,6 +102,7 @@ pub async fn on_exit() {
 async fn get_module_from_path(
 	expected_pid: u64,
 	path: Result<DirEntry, Error>,
+	log_dir: &Option<String>,
 ) -> Option<ProcessRunner> {
 	if path.is_err() {
 		return None;
@@ -115,8 +126,23 @@ async fn get_module_from_path(
 	if config.is_err() {
 		return None;
 	}
+	let config = config.unwrap();
 
-	Some(ProcessRunner::new(expected_pid, config.unwrap()))
+	let mut runner = ProcessRunner::new(expected_pid, config.clone());
+	if let Some(log_dir) = log_dir {
+		let main_dir = Path::new(log_dir);
+		if !main_dir.exists().await {
+			fs::create_dir(&main_dir).await.unwrap();
+		}
+
+		let sub_dir = main_dir.join(config.name);
+		if !sub_dir.exists().await {
+			fs::create_dir(&sub_dir).await.unwrap();
+		}
+		runner.log_dir = Some(String::from(sub_dir.to_str().unwrap()));
+	}
+
+	Some(runner)
 }
 
 async fn keep_processes_alive(

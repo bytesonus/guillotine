@@ -3,6 +3,8 @@ use crate::{
 	models::{ModuleRunnerConfig, ModuleRunningStatus},
 };
 use std::{
+	fs::OpenOptions,
+	path::Path,
 	process::{Child, Command, Stdio},
 	time::{SystemTime, UNIX_EPOCH},
 };
@@ -10,6 +12,7 @@ use std::{
 #[derive(Debug)]
 pub struct ProcessRunner {
 	process: Option<Child>,
+	pub log_dir: Option<String>,
 	pub module_id: u64,
 	pub config: ModuleRunnerConfig,
 	pub status: ModuleRunningStatus,
@@ -25,6 +28,7 @@ impl ProcessRunner {
 		ProcessRunner {
 			module_id,
 			process: None,
+			log_dir: None,
 			config,
 			status: ModuleRunningStatus::Offline,
 			restarts: -1,
@@ -69,18 +73,64 @@ impl ProcessRunner {
 		}
 
 		let child = if self.config.interpreter.is_none() {
-			Command::new(&self.config.command)
+			let mut command = Command::new(&self.config.command);
+			command
 				.args(self.config.args.as_ref().unwrap_or(&vec![]))
-				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone())
-				.stdin(Stdio::null())
-				.stdout(Stdio::null())
-				.spawn()
+				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone());
+
+			if self.log_dir.is_some() {
+				let log_dir = self.log_dir.as_ref().unwrap();
+
+				let output_location = Path::new(log_dir).join("output.log");
+				let error_location = Path::new(log_dir).join("error.log");
+
+				let output = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(output_location);
+				let error = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(error_location);
+
+				if output.is_ok() && error.is_ok() {
+					command
+						.stdout(Stdio::from(output.unwrap()))
+						.stderr(Stdio::from(error.unwrap()));
+				}
+			}
+
+			command.spawn()
 		} else {
-			Command::new(self.config.interpreter.as_ref().unwrap())
+			let mut command = Command::new(self.config.interpreter.as_ref().unwrap());
+			command
 				.arg(&self.config.command)
 				.args(self.config.args.as_ref().unwrap_or(&vec![]))
-				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone())
-				.spawn()
+				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone());
+
+			if self.log_dir.is_some() {
+				let log_dir = self.log_dir.as_ref().unwrap();
+
+				let output_location = Path::new(log_dir).join("output.log");
+				let error_location = Path::new(log_dir).join("error.log");
+
+				let output = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(output_location);
+				let error = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(error_location);
+
+				if output.is_ok() && error.is_ok() {
+					command
+						.stdout(Stdio::from(output.unwrap()))
+						.stderr(Stdio::from(error.unwrap()));
+				}
+			}
+
+			command.spawn()
 		};
 		if let Err(err) = child {
 			println!(
@@ -158,6 +208,7 @@ impl ProcessRunner {
 		ProcessRunner {
 			module_id: self.module_id,
 			process: None,
+			log_dir: self.log_dir.clone(),
 			config: self.config.clone(),
 			status: self.status.clone(),
 			restarts: self.restarts,
