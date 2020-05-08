@@ -2,11 +2,12 @@ use crate::{
 	logger,
 	models::{ModuleRunnerConfig, ModuleRunningStatus},
 };
+use async_std::task;
 use std::{
 	fs::OpenOptions,
 	path::Path,
 	process::{Child, Command, Stdio},
-	time::{SystemTime, UNIX_EPOCH},
+	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Debug)]
@@ -74,11 +75,27 @@ impl ProcessRunner {
 		}
 	}
 
-	pub fn respawn(&mut self) {
-		if self.process.is_some() && self.is_process_running() {
-			self.process.as_mut().unwrap().kill().unwrap();
-		}
+	pub async fn respawn(&mut self) {
 		logger::info(&format!("Respawning '{}'", self.config.name));
+		if self.process.is_some() && self.is_process_running() {
+			self.send_quit_signal();
+			let quit_time = get_current_time();
+			loop {
+				// Give the process some time to die.
+				task::sleep(Duration::from_millis(100)).await;
+				// If the process is not running, then break
+				if !self.is_process_running() {
+					break;
+				}
+				// If the processes is running, check if it's been given enough time.
+				if get_current_time() > quit_time + 1000 {
+					// It's been trying to quit for more than 1 second. Kill it and quit
+					logger::info(&format!("Killing process: {}", self.config.name));
+					self.process.as_mut().unwrap().kill().unwrap_or(());
+					break;
+				}
+			}
+		}
 
 		let child = if self.config.interpreter.is_none() {
 			let mut command = Command::new(&self.config.command);
@@ -163,6 +180,7 @@ impl ProcessRunner {
 		}
 		self.process = Some(child.unwrap());
 		self.restarts += 1;
+		self.uptime = 0;
 		self.status = ModuleRunningStatus::Running;
 		self.last_started_at = get_current_time();
 	}

@@ -63,6 +63,16 @@ async fn main() {
 						.allow_hyphen_values(false),
 				),
 		)
+		.subcommand(
+			SubCommand::with_name("restart")
+				.about("Restarts a process with a processId")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				),
+		)
 		.arg(
 			Arg::with_name("config")
 				.short("c")
@@ -103,6 +113,7 @@ async fn main() {
 		("list-processes", Some(_)) => cli::list_processes(config).await,
 		("list-modules", Some(_)) => cli::list_modules(config).await,
 		("info", Some(args)) => cli::get_module_info(config, args).await,
+		("restart", Some(args)) => cli::restart_process(config, args).await,
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}
 }

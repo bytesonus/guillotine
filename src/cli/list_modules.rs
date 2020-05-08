@@ -33,6 +33,7 @@ pub async fn list_modules(config: GuillotineSpecificConfig) {
 		.unwrap();
 	if !modules.is_array() {
 		logger::error(&format!("Expected array response. Got {:?}", modules));
+		return;
 	}
 	let modules = modules.as_array().unwrap();
 

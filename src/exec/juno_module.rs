@@ -48,6 +48,11 @@ pub async fn setup_module(
 		.unwrap();
 
 	module
+		.declare_function("restartProcess", restart_process)
+		.await
+		.unwrap();
+
+	module
 }
 
 fn list_processes(_: HashMap<String, Value>) -> Value {
@@ -98,4 +103,62 @@ fn list_processes(_: HashMap<String, Value>) -> Value {
 			})
 			.collect(),
 	)
+}
+
+fn restart_process(args: HashMap<String, Value>) -> Value {
+	let pid = args.get("processId");
+	if pid.is_none() {
+		return Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(false));
+			map.insert(
+				String::from("error"),
+				Value::String(String::from("No PID supplied")),
+			);
+			map
+		});
+	}
+	let pid = pid.unwrap().as_number();
+	if pid.is_none() {
+		return Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(false));
+			map.insert(
+				String::from("error"),
+				Value::String(String::from("PID supplied is not a number")),
+			);
+			map
+		});
+	}
+	let pid = match pid.unwrap() {
+		Number::Float(num) => *num as u64,
+		Number::NegInt(num) => *num as u64,
+		Number::PosInt(num) => *num,
+	};
+
+	let message_sender = MESSAGE_SENDER.lock().unwrap();
+	let mut message_sender = message_sender.as_ref().unwrap();
+
+	let (sender, receiver) = channel::<bool>();
+
+	task::block_on(message_sender.send(GuillotineMessage::RestartProcess(pid, sender))).unwrap();
+	let found_process = task::block_on(receiver).unwrap();
+
+	if found_process {
+		Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(true));
+			map
+		})
+	} else {
+		Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(false));
+			map.insert(
+				String::from("error"),
+				Value::String(String::from("No process found with that PID")),
+			);
+			map
+		})
+	}
 }

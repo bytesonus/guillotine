@@ -1,15 +1,17 @@
 mod list_processes;
 mod list_modules;
 mod get_module_info;
+mod restart_process;
 
 pub use list_processes::list_processes;
 pub use list_modules::list_modules;
 pub use get_module_info::get_module_info;
+pub use restart_process::restart_process;
 
 use chrono::{prelude::*, Utc};
 
 pub async fn on_exit() {
-	
+
 }
 
 fn get_date_time(timestamp: i64) -> String {

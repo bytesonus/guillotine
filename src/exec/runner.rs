@@ -28,7 +28,7 @@ pub async fn run(config: GuillotineSpecificConfig) {
 	let juno_path = config.juno.path.clone();
 	let mut pid = 0;
 
-	let mut juno_process = if config.juno.connection_type == "unix_socket" {
+	let juno_process = if config.juno.connection_type == "unix_socket" {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		ProcessRunner::new(
 			pid,
@@ -123,12 +123,6 @@ pub async fn run(config: GuillotineSpecificConfig) {
 		None => None,
 	};
 
-	// Spawn juno before spawing any modules
-	while !juno_process.is_process_running() {
-		juno_process.respawn();
-	}
-	ensure_juno_initialized(config.clone()).await;
-
 	keep_processes_alive(juno_process, config, tracked_modules).await;
 }
 
@@ -198,9 +192,14 @@ async fn keep_processes_alive(
 	juno_config: GuillotineSpecificConfig,
 	mut processes: Option<Vec<ProcessRunner>>,
 ) {
+	// Spawn juno before spawing any modules
+	while !juno_process.is_process_running() {
+		juno_process.respawn().await;
+		ensure_juno_initialized(juno_config.clone()).await;
+	}
 	// Initialize the guillotine juno module
-	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
-	let _module = juno_module::setup_module(juno_config, sender).await;
+	let (mut sender, mut command_receiver) = unbounded::<GuillotineMessage>();
+	let mut module = juno_module::setup_module(juno_config.clone(), sender).await;
 
 	let mut timer_future = Delay::new(Duration::from_millis(100));
 	let mut command_future = command_receiver.next();
@@ -217,8 +216,19 @@ async fn keep_processes_alive(
 				timer_future = Delay::new(Duration::from_millis(100));
 
 				// Make sure juno is running before checking any other modules
-				while !juno_process.is_process_running() {
-					juno_process.respawn();
+				if !juno_process.is_process_running() {
+					module.close().await;
+					drop(module);
+					
+					juno_process.respawn().await;
+					ensure_juno_initialized(juno_config.clone()).await;
+
+					let channel = unbounded::<GuillotineMessage>();
+					sender = channel.0;
+					command_receiver = channel.1;
+
+					command_future = command_receiver.next();
+					module = juno_module::setup_module(juno_config.clone(), sender).await;
 				}
 
 				if processes.is_none() {
@@ -228,7 +238,7 @@ async fn keep_processes_alive(
 				for module in processes.iter_mut() {
 					// If a module isn't running, respawn it. Simple.
 					if !module.is_process_running() {
-						module.respawn();
+						module.respawn().await;
 					}
 				}
 			}
@@ -238,8 +248,8 @@ async fn keep_processes_alive(
 				command_future = command_receiver.next();
 
 				match command_value {
-					Some(cmd) => {
-						if let GuillotineMessage::ListProcesses(sender) = cmd {
+					Some(cmd) => match cmd {
+						GuillotineMessage::ListProcesses(sender) => {
 							let mut runners = vec![juno_process.copy()];
 							if processes.is_some() {
 								processes
@@ -250,7 +260,44 @@ async fn keep_processes_alive(
 							}
 							sender.send(runners).unwrap();
 						}
-					}
+						GuillotineMessage::RestartProcess(pid, response_sender) => {
+							if processes.is_none() {
+								response_sender.send(false).unwrap();
+								continue;
+							}
+
+							if pid == 0 {
+								response_sender.send(true).unwrap();
+								module.close().await;
+								drop(module);
+								
+								juno_process.respawn().await;
+								ensure_juno_initialized(juno_config.clone()).await;
+
+								let channel = unbounded::<GuillotineMessage>();
+								sender = channel.0;
+								command_receiver = channel.1;
+
+								command_future = command_receiver.next();
+								module =
+									juno_module::setup_module(juno_config.clone(), sender).await;
+								continue;
+							}
+
+							let module = processes
+								.as_mut()
+								.unwrap()
+								.iter_mut()
+								.find(|process| process.module_id == pid);
+							if module.is_none() {
+								response_sender.send(false).unwrap();
+								continue;
+							}
+							module.unwrap().respawn().await;
+							response_sender.send(true).unwrap();
+						}
+						_ => {}
+					},
 					None => {
 						println!("Got None as a command. Is the sender closed?");
 					}
