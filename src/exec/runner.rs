@@ -33,9 +33,33 @@ pub async fn run(config: GuillotineSpecificConfig) {
 		ProcessRunner::new(
 			pid,
 			ModuleRunnerConfig::juno_default(
-				juno_path,
+				juno_path.clone(),
 				vec!["--socket-location".to_string(), socket_path.clone()],
 			),
+			match &config.modules {
+				Some(modules) => {
+					if let Some(log_dir) = &modules.logs {
+						let main_dir = Path::new(log_dir);
+						if !main_dir.exists().await {
+							fs::create_dir(&main_dir).await.unwrap();
+						}
+						let sub_dir = main_dir.join("Juno");
+						if !sub_dir.exists().await {
+							fs::create_dir(&sub_dir).await.unwrap();
+						}
+						Some(String::from(sub_dir.to_str().unwrap()))
+					} else {
+						None
+					}
+				}
+				None => None,
+			},
+			Path::new(&juno_path)
+				.parent()
+				.unwrap()
+				.to_str()
+				.unwrap()
+				.to_string(),
 		)
 	} else {
 		let port = config.juno.port.as_ref().unwrap();
@@ -44,7 +68,7 @@ pub async fn run(config: GuillotineSpecificConfig) {
 		ProcessRunner::new(
 			pid,
 			ModuleRunnerConfig::juno_default(
-				juno_path,
+				juno_path.clone(),
 				vec![
 					"--port".to_string(),
 					format!("{}", port),
@@ -52,24 +76,36 @@ pub async fn run(config: GuillotineSpecificConfig) {
 					bind_addr.clone(),
 				],
 			),
+			match &config.modules {
+				Some(modules) => {
+					if let Some(log_dir) = &modules.logs {
+						let main_dir = Path::new(log_dir);
+						if !main_dir.exists().await {
+							fs::create_dir(&main_dir).await.unwrap();
+						}
+						let sub_dir = main_dir.join("Juno");
+						if !sub_dir.exists().await {
+							fs::create_dir(&sub_dir).await.unwrap();
+						}
+						Some(String::from(sub_dir.to_str().unwrap()))
+					} else {
+						None
+					}
+				}
+				None => None,
+			},
+			Path::new(&juno_path)
+				.parent()
+				.unwrap()
+				.to_str()
+				.unwrap()
+				.to_string(),
 		)
 	};
 	pid += 1;
 
 	let tracked_modules = match &config.modules {
 		Some(modules) => {
-			if let Some(log_dir) = &modules.logs {
-				let main_dir = Path::new(log_dir);
-				if !main_dir.exists().await {
-					fs::create_dir(&main_dir).await.unwrap();
-				}
-				let sub_dir = main_dir.join(&juno_process.config.name);
-				if !sub_dir.exists().await {
-					fs::create_dir(&sub_dir).await.unwrap();
-				}
-				juno_process.log_dir = Some(String::from(sub_dir.to_str().unwrap()));
-			}
-
 			let mut tracked_modules = Vec::new();
 			let modules_path = Path::new(&modules.path);
 			if modules_path.exists().await && modules_path.is_dir().await {
@@ -129,19 +165,30 @@ async fn get_module_from_path(
 	}
 	let config = config.unwrap();
 
-	let mut runner = ProcessRunner::new(expected_pid, config.clone());
-	if let Some(log_dir) = log_dir {
+	let runner = if let Some(log_dir) = log_dir {
 		let main_dir = Path::new(log_dir);
 		if !main_dir.exists().await {
 			fs::create_dir(&main_dir).await.unwrap();
 		}
 
-		let sub_dir = main_dir.join(config.name);
+		let sub_dir = main_dir.join(&config.name);
 		if !sub_dir.exists().await {
 			fs::create_dir(&sub_dir).await.unwrap();
 		}
-		runner.log_dir = Some(String::from(sub_dir.to_str().unwrap()));
-	}
+		ProcessRunner::new(
+			expected_pid,
+			config.clone(),
+			Some(String::from(sub_dir.to_str().unwrap())),
+			root_path.to_str().unwrap().to_string(),
+		)
+	} else {
+		ProcessRunner::new(
+			expected_pid,
+			config.clone(),
+			None,
+			root_path.to_str().unwrap().to_string(),
+		)
+	};
 
 	Some(runner)
 }

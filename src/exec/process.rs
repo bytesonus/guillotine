@@ -13,6 +13,7 @@ use std::{
 pub struct ProcessRunner {
 	process: Option<Child>,
 	pub log_dir: Option<String>,
+	pub working_dir: String,
 	pub module_id: u64,
 	pub config: ModuleRunnerConfig,
 	pub status: ModuleRunningStatus,
@@ -24,11 +25,12 @@ pub struct ProcessRunner {
 }
 
 impl ProcessRunner {
-	pub fn new(module_id: u64, config: ModuleRunnerConfig) -> Self {
+	pub fn new(module_id: u64, config: ModuleRunnerConfig, log_dir: Option<String>, working_dir: String) -> Self {
 		ProcessRunner {
-			module_id,
 			process: None,
-			log_dir: None,
+			log_dir,
+			working_dir,
+			module_id,
 			config,
 			status: ModuleRunningStatus::Offline,
 			restarts: -1,
@@ -76,6 +78,7 @@ impl ProcessRunner {
 		let child = if self.config.interpreter.is_none() {
 			let mut command = Command::new(&self.config.command);
 			command
+				.current_dir(&self.working_dir)
 				.args(self.config.args.as_ref().unwrap_or(&vec![]))
 				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone());
 
@@ -105,6 +108,7 @@ impl ProcessRunner {
 		} else {
 			let mut command = Command::new(self.config.interpreter.as_ref().unwrap());
 			command
+				.current_dir(&self.working_dir)
 				.arg(&self.config.command)
 				.args(self.config.args.as_ref().unwrap_or(&vec![]))
 				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone());
@@ -207,9 +211,10 @@ impl ProcessRunner {
 
 	pub fn copy(&self) -> Self {
 		ProcessRunner {
-			module_id: self.module_id,
 			process: None,
 			log_dir: self.log_dir.clone(),
+			working_dir: self.working_dir.clone(),
+			module_id: self.module_id,
 			config: self.config.clone(),
 			status: self.status.clone(),
 			restarts: self.restarts,
