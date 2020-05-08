@@ -6,7 +6,7 @@ use futures::channel::oneshot::Sender;
 pub enum GuillotineMessage {
 	ListModules(Sender<Vec<String>>),
 	ListProcesses(Sender<Vec<ProcessRunner>>),
-	RestartProcess(String),
+	RestartProcess(String, Sender<()>),
 	StopProcess,
 	StartProcess,
 	DeleteProcess,

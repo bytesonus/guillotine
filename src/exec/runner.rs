@@ -54,6 +54,7 @@ pub async fn run(config: GuillotineSpecificConfig) {
 			),
 		)
 	};
+	pid += 1;
 
 	let tracked_modules = match &config.modules {
 		Some(modules) => {
