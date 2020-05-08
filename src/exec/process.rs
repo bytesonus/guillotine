@@ -25,7 +25,12 @@ pub struct ProcessRunner {
 }
 
 impl ProcessRunner {
-	pub fn new(module_id: u64, config: ModuleRunnerConfig, log_dir: Option<String>, working_dir: String) -> Self {
+	pub fn new(
+		module_id: u64,
+		config: ModuleRunnerConfig,
+		log_dir: Option<String>,
+		working_dir: String,
+	) -> Self {
 		ProcessRunner {
 			process: None,
 			log_dir,
@@ -99,8 +104,14 @@ impl ProcessRunner {
 
 				if output.is_ok() && error.is_ok() {
 					command
+						.stdin(Stdio::null())
 						.stdout(Stdio::from(output.unwrap()))
 						.stderr(Stdio::from(error.unwrap()));
+				} else {
+					command
+						.stdin(Stdio::null())
+						.stdout(Stdio::null())
+						.stderr(Stdio::null());
 				}
 			}
 
@@ -130,8 +141,14 @@ impl ProcessRunner {
 
 				if output.is_ok() && error.is_ok() {
 					command
+						.stdin(Stdio::null())
 						.stdout(Stdio::from(output.unwrap()))
 						.stderr(Stdio::from(error.unwrap()));
+				} else {
+					command
+						.stdin(Stdio::null())
+						.stdout(Stdio::null())
+						.stderr(Stdio::null());
 				}
 			}
 
