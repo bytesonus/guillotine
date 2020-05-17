@@ -2,34 +2,37 @@ use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
 pub struct GuillotineConfig {
-	pub version: String,
+	pub version: u64,
 	pub configs: Option<Vec<GuillotinePerEnvConfig>>,
-	pub config: Option<GuillotineSpecificConfig>,
+	pub config: Option<RunnerConfig>,
 }
 
 #[derive(Deserialize)]
 pub struct GuillotinePerEnvConfig {
-	pub env: EnvRequirements,
-	pub config: GuillotineSpecificConfig,
+	pub target: Option<ConfigTarget>,
+	pub config: RunnerConfig,
 }
 
 #[derive(Deserialize)]
-pub struct EnvRequirements {
-	pub target_family: Option<String>,
-	pub target_os: Option<String>,
-	pub target_arch: Option<String>,
-	pub target_endian: Option<String>,
+pub struct ConfigTarget {
+	pub family: Option<String>,
+	pub os: Option<String>,
+	pub arch: Option<String>,
+	pub endian: Option<String>,
 }
 
 // Config specific to this environment
 #[derive(Deserialize, Clone)]
-pub struct GuillotineSpecificConfig {
-	pub juno: JunoConfig,
-	pub modules: Option<GuillotineModuleConfig>,
+pub struct RunnerConfig {
+	pub name: String,
+	pub logs: Option<String>,
+	pub host: Option<HostConfig>,
+	pub node: Option<NodeConfig>,
+	pub modules: Option<ModuleConfig>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct JunoConfig {
+pub struct HostConfig {
 	pub path: String,
 	pub connection_type: String,
 	pub port: Option<u16>,
@@ -38,9 +41,15 @@ pub struct JunoConfig {
 }
 
 #[derive(Deserialize, Clone)]
-pub struct GuillotineModuleConfig {
-	pub path: String,
-	pub logs: Option<String>,
+pub struct NodeConfig {
+	pub connection_type: String,
+	pub port: Option<u16>,
+	pub ip: Option<String>,
+	pub socket_path: Option<String>,
+}
+
+pub struct ModuleConfig {
+	pub directory: String
 }
 
 #[derive(Debug, Clone)]

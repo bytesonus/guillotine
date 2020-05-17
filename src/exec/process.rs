@@ -4,25 +4,29 @@ use crate::{
 };
 use async_std::task;
 use std::{
+	collections::HashMap,
 	fs::OpenOptions,
 	path::Path,
 	process::{Child, Command, Stdio},
 	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use juno::JunoModule;
+
 #[derive(Debug)]
 pub struct ProcessRunner {
 	process: Option<Child>,
-	pub log_dir: Option<String>,
-	pub working_dir: String,
-	pub module_id: u64,
-	pub config: ModuleRunnerConfig,
-	pub status: ModuleRunningStatus,
-	pub restarts: i64,
-	pub uptime: u64,
-	pub last_started_at: u64,
-	pub crashes: u64,
-	pub created_at: u64,
+	log_dir: Option<String>,
+	runner: String,
+	working_dir: String,
+	module_id: u64,
+	config: ModuleRunnerConfig,
+	status: ModuleRunningStatus,
+	restarts: i64,
+	uptime: u64,
+	last_started_at: u64,
+	crashes: u64,
+	created_at: u64,
 }
 
 impl ProcessRunner {
@@ -35,6 +39,7 @@ impl ProcessRunner {
 		ProcessRunner {
 			process: None,
 			log_dir,
+			runner: String::from("host"),
 			working_dir,
 			module_id,
 			config,
@@ -45,6 +50,26 @@ impl ProcessRunner {
 			crashes: 0,
 			created_at: get_current_time(),
 		}
+	}
+
+	pub fn get_name(&self) -> &str {
+		&self.config.name
+	}
+
+	pub fn get_module_id(&self) -> u64 {
+		self.module_id
+	}
+
+	pub fn set_module_id(&mut self, module_id: u64) {
+		self.module_id = module_id;
+	}
+
+	pub fn get_runner(&self) -> &str {
+		&self.runner
+	}
+
+	pub fn set_runner(&mut self, runner: String) {
+		self.runner = runner;
 	}
 
 	pub fn is_process_running(&mut self) -> bool {
@@ -248,6 +273,7 @@ impl ProcessRunner {
 		ProcessRunner {
 			process: None,
 			log_dir: self.log_dir.clone(),
+			runner: self.runner.clone(),
 			working_dir: self.working_dir.clone(),
 			module_id: self.module_id,
 			config: self.config.clone(),
@@ -258,6 +284,16 @@ impl ProcessRunner {
 			crashes: self.crashes,
 			created_at: self.created_at,
 		}
+	}
+
+	async fn update_data(&mut self, module: &JunoModule) {
+		let result = module.call_function(&format!("guillotine-node-{}", self.runner), HashMap::new()).await;
+		if result.is_err() {
+			return;
+		}
+		let result = result.unwrap();
+
+
 	}
 }
 

@@ -55,6 +55,7 @@ async fn main() {
 		)
 		.subcommand(
 			SubCommand::with_name("info")
+				.alias("i")
 				.about("Get information about a process / module")
 				.arg(
 					Arg::with_name("pid")

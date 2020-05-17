@@ -1,6 +1,6 @@
 use crate::{
 	exec::process::ProcessRunner,
-	models::{GuillotineMessage, GuillotineSpecificConfig, ModuleRunningStatus},
+	models::{GuillotineMessage, HostConfig, ModuleRunningStatus},
 	utils::constants,
 };
 use std::{collections::HashMap, sync::Mutex};
@@ -19,20 +19,18 @@ lazy_static! {
 	static ref MESSAGE_SENDER: Mutex<Option<UnboundedSender<GuillotineMessage>>> = Mutex::new(None);
 }
 
-pub async fn setup_module(
-	config: GuillotineSpecificConfig,
+pub async fn setup_host_module(
+	config: &HostConfig,
 	sender: UnboundedSender<GuillotineMessage>,
 ) -> JunoModule {
-	let mut message_sender = MESSAGE_SENDER.lock().unwrap();
-	*message_sender = Some(sender);
-	drop(message_sender);
+	MESSAGE_SENDER.lock().unwrap().replace(sender);
 
-	let mut module = if config.juno.connection_type == "unix_socket" {
-		let socket_path = config.juno.socket_path.as_ref().unwrap();
+	let mut module = if config.connection_type == "unix_socket" {
+		let socket_path = config.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)
 	} else {
-		let port = config.juno.port.as_ref().unwrap();
-		let bind_addr = config.juno.bind_addr.as_ref().unwrap();
+		let port = config.port.as_ref().unwrap();
+		let bind_addr = config.bind_addr.as_ref().unwrap();
 
 		JunoModule::from_inet_socket(&bind_addr, *port)
 	};
@@ -40,7 +38,10 @@ pub async fn setup_module(
 	module
 		.initialize(constants::APP_NAME, constants::APP_VERSION, HashMap::new())
 		.await
-		.expect("Could not initialize Guillotine Juno Module");
+		.expect(&format!(
+			"Could not initialize {} Juno Module",
+			constants::APP_NAME
+		));
 
 	module
 		.declare_function("listProcesses", list_processes)
@@ -72,9 +73,12 @@ fn list_processes(_: HashMap<String, Value>) -> Value {
 
 				map.insert(
 					String::from("id"),
-					Value::Number(Number::PosInt(process.module_id)),
+					Value::Number(Number::PosInt(process.get_module_id())),
 				);
-				map.insert(String::from("name"), Value::String(process.config.name));
+				map.insert(
+					String::from("name"),
+					Value::String(process.get_name().to_string()),
+				);
 				map.insert(
 					String::from("status"),
 					Value::String(String::from(match process.status {

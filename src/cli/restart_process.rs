@@ -1,4 +1,4 @@
-use crate::{logger, models::GuillotineSpecificConfig, utils::constants};
+use crate::{logger, models::RunnerConfig, utils::constants};
 
 use clap::ArgMatches;
 use cli_table::{
@@ -13,7 +13,7 @@ use juno::{
 };
 use std::collections::HashMap;
 
-pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches<'_>) {
+pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 	let mut module = if config.juno.connection_type == "unix_socket" {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)
@@ -62,6 +62,7 @@ pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches
 		})
 		.await
 		.unwrap();
+	module.close().await;
 	drop(module);
 
 	if !response.is_object() {

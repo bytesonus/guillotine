@@ -1,4 +1,4 @@
-use crate::{logger, models::GuillotineSpecificConfig, utils::constants};
+use crate::{logger, models::RunnerConfig, utils::constants};
 
 use cli_table::{
 	format::{
@@ -9,7 +9,7 @@ use cli_table::{
 use juno::JunoModule;
 use std::collections::HashMap;
 
-pub async fn list_modules(config: GuillotineSpecificConfig) {
+pub async fn list_modules(config: RunnerConfig) {
 	let mut module = if config.juno.connection_type == "unix_socket" {
 		let socket_path = config.juno.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)
