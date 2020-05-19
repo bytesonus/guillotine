@@ -21,11 +21,7 @@ lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
 }
 
-pub async fn run(
-	mut juno_process: ProcessRunner,
-	juno_config: HostConfig,
-	mut processes: Vec<ProcessRunner>,
-) {
+pub async fn run(mut juno_process: ProcessRunner, juno_config: HostConfig) {
 	// Spawn juno before spawing any modules
 	while !juno_process.is_process_running() {
 		juno_process.respawn().await;

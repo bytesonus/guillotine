@@ -86,16 +86,8 @@ pub async fn run(config: RunnerConfig) {
 		};
 		pid += 1;
 
-		let tracked_modules = get_all_available_modules(pid, &config).await;
-
-		host_runner::run(
-			juno_process,
-			config.host.as_ref().unwrap().clone(),
-			tracked_modules,
-		)
-		.await;
+		host_runner::run(juno_process, config.host.clone().unwrap()).await;
 	} else if config.node.is_some() {
-		
 	} else {
 		return;
 	}

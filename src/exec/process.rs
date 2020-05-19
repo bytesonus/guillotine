@@ -287,13 +287,13 @@ impl ProcessRunner {
 	}
 
 	async fn update_data(&mut self, module: &JunoModule) {
-		let result = module.call_function(&format!("guillotine-node-{}", self.runner), HashMap::new()).await;
+		let result = module
+			.call_function(&format!("guillotine-node-{}", self.runner), HashMap::new())
+			.await;
 		if result.is_err() {
 			return;
 		}
 		let result = result.unwrap();
-
-
 	}
 }
 

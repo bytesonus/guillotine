@@ -1,18 +1,16 @@
-mod list_processes;
-mod list_modules;
 mod get_module_info;
+mod list_modules;
+mod list_processes;
 mod restart_process;
 
-pub use list_processes::list_processes;
-pub use list_modules::list_modules;
 pub use get_module_info::get_module_info;
+pub use list_modules::list_modules;
+pub use list_processes::list_processes;
 pub use restart_process::restart_process;
 
 use chrono::{prelude::*, Utc};
 
-pub async fn on_exit() {
-
-}
+pub async fn on_exit() {}
 
 fn get_date_time(timestamp: i64) -> String {
 	Utc.timestamp_millis(timestamp)

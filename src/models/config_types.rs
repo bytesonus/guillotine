@@ -49,12 +49,13 @@ pub struct NodeConfig {
 }
 
 pub struct ModuleConfig {
-	pub directory: String
+	pub directory: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ModuleRunningStatus {
 	Running,
+	Stopped,
 	Offline,
 }
 

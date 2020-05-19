@@ -23,7 +23,9 @@ extern crate winapi;
 
 mod cli;
 mod exec;
+mod host;
 mod models;
+mod node;
 mod utils;
 
 use exec::runner;

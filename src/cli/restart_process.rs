@@ -155,7 +155,8 @@ pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 			Cell::new(
 				&format!(
 					"{}",
-					if pid == process
+					if pid
+						== process
 							.get("id")
 							.unwrap()
 							.as_number()
