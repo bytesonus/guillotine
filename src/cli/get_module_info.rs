@@ -3,9 +3,18 @@ use crate::{logger, models::RunnerConfig, utils::constants};
 use clap::ArgMatches;
 use cli_table::{
 	format::{
-		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
+		Align,
+		Border,
+		CellFormat,
+		Color,
+		HorizontalLine,
+		Separator,
+		TableFormat,
+		VerticalLine,
 	},
-	Cell, Row, Table,
+	Cell,
+	Row,
+	Table,
 };
 use juno::{models::Value, JunoModule};
 use std::collections::HashMap;

@@ -24,7 +24,7 @@ pub struct ConfigTarget {
 // Config specific to this environment
 #[derive(Deserialize, Clone)]
 pub struct RunnerConfig {
-	pub name: String,
+	pub name: Option<String>,
 	pub logs: Option<String>,
 	pub host: Option<HostConfig>,
 	pub node: Option<NodeConfig>,

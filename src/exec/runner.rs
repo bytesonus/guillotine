@@ -1,5 +1,5 @@
 use crate::{
-	exec::{host_runner, process::ProcessRunner},
+	exec::process::ProcessRunner,
 	models::{ModuleRunnerConfig, RunnerConfig},
 	utils::constants,
 };
@@ -86,7 +86,7 @@ pub async fn run(config: RunnerConfig) {
 		};
 		pid += 1;
 
-		host_runner::run(juno_process, config.host.clone().unwrap()).await;
+		host::run(juno_process, config.host.clone().unwrap()).await;
 	} else if config.node.is_some() {
 	} else {
 		return;
@@ -94,7 +94,7 @@ pub async fn run(config: RunnerConfig) {
 }
 
 pub async fn on_exit() {
-	host_runner::on_exit().await;
+	host::on_exit().await;
 }
 
 async fn get_all_available_modules(starting_pid: u64, config: &RunnerConfig) -> Vec<ProcessRunner> {

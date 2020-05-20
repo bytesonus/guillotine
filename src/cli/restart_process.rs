@@ -3,9 +3,18 @@ use crate::{logger, models::RunnerConfig, utils::constants};
 use clap::ArgMatches;
 use cli_table::{
 	format::{
-		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
+		Align,
+		Border,
+		CellFormat,
+		Color,
+		HorizontalLine,
+		Separator,
+		TableFormat,
+		VerticalLine,
 	},
-	Cell, Row, Table,
+	Cell,
+	Row,
+	Table,
 };
 use juno::{
 	models::{Number, Value},
@@ -155,8 +164,8 @@ pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 			Cell::new(
 				&format!(
 					"{}",
-					if pid
-						== process
+					if pid ==
+						process
 							.get("id")
 							.unwrap()
 							.as_number()

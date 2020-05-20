@@ -26,9 +26,9 @@ mod exec;
 mod host;
 mod models;
 mod node;
+mod runner;
 mod utils;
 
-use exec::runner;
 use models::parser;
 use utils::{constants, logger};
 

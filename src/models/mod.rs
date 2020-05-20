@@ -1,12 +1,21 @@
-mod cli_messages;
-mod config_types;
-mod host_models;
+mod config_data;
+mod guillotine_message;
+mod guillotine_node;
+mod process_data;
 
 pub mod parser;
 
-pub use cli_messages::GuillotineMessage;
-pub use config_types::{
-	ConfigTarget, GuillotineConfig, GuillotinePerEnvConfig, HostConfig, ModuleConfig,
-	ModuleRunnerConfig, ModuleRunningStatus, NodeConfig, RunnerConfig,
+pub use config_data::{
+	ConfigTarget,
+	GuillotineConfig,
+	GuillotinePerEnvConfig,
+	HostConfig,
+	ModuleConfig,
+	ModuleRunnerConfig,
+	ModuleRunningStatus,
+	NodeConfig,
+	RunnerConfig,
 };
-pub use host_models::{GuillotineNode, ProcessData};
+pub use guillotine_message::GuillotineMessage;
+pub use guillotine_node::GuillotineNode;
+pub use process_data::ProcessData;

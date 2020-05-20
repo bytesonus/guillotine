@@ -2,7 +2,11 @@ use crate::{
 	exec::process::ProcessRunner,
 	host::juno_module,
 	models::{
-		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
+		GuillotineMessage,
+		GuillotineNode,
+		HostConfig,
+		ModuleRunnerConfig,
+		ModuleRunningStatus,
 		RunnerConfig,
 	},
 	utils::{constants, logger},
@@ -90,6 +94,10 @@ pub async fn run(mut config: RunnerConfig) {
 	};
 
 	keep_host_alive(juno_process, host).await;
+}
+
+pub async fn on_exit() {
+	*CLOSE_FLAG.lock().await = true;
 }
 
 async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfig) {
@@ -450,7 +458,7 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 }
 
 async fn try_connecting_to_juno(host: &HostConfig) -> bool {
-	if host.port.is_some() {
+	if host.connection_type == constants::connection_type::INET_SOCKET {
 		let port = host.port.unwrap();
 		// Attempt to connect to the port until you can connect
 		let port = format!("127.0.0.1:{}", port);
@@ -462,7 +470,7 @@ async fn try_connecting_to_juno(host: &HostConfig) -> bool {
 			return connection.is_ok();
 		}
 		return true;
-	} else {
+	} else if host.connection_type == constants::connection_type::UNIX_SOCKET {
 		let unix_socket = host.socket_path.unwrap();
 		let mut connection = connect_to_unix_socket(&unix_socket).await;
 		if connection.is_err() {
@@ -472,6 +480,8 @@ async fn try_connecting_to_juno(host: &HostConfig) -> bool {
 			return connection.is_ok();
 		}
 		return true;
+	} else {
+		panic!("Connection type is neither unix socket not inet socket. How did you get here?");
 	}
 }
 

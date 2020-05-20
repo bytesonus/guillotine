@@ -1,5 +1,12 @@
 use crate::{
-	models::{GuillotineMessage, HostConfig, ModuleRunnerConfig, ModuleRunningStatus, ProcessData},
+	models::{
+		GuillotineMessage,
+		GuillotineNode,
+		HostConfig,
+		ModuleRunnerConfig,
+		ModuleRunningStatus,
+		ProcessData,
+	},
 	utils::constants,
 };
 use std::collections::HashMap;
@@ -64,6 +71,31 @@ pub async fn setup_host_module(
 		.unwrap();
 
 	module
+		.declare_function("listModules", list_modules)
+		.await
+		.unwrap();
+
+	module
+		.declare_function("listNodes", list_nodes)
+		.await
+		.unwrap();
+
+	module
+		.declare_function("listAllProcesses", list_all_processes)
+		.await
+		.unwrap();
+
+	module
+		.declare_function("listProcesses", list_processes)
+		.await
+		.unwrap();
+
+	module
+		.declare_function("restartProcess", restart_process)
+		.await
+		.unwrap();
+
+	module
 		.register_hook("juno.moduleDeactivated", module_deactivated)
 		.await
 		.unwrap();
@@ -76,7 +108,7 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 		let name = if let Some(Value::String(value)) = args.remove("name") {
 			value
 		} else {
-			return generate_error_response(Some("Name parameter is not a string"));
+			return generate_error_response("Name parameter is not a string");
 		};
 
 		let (sender, receiver) = channel::<Result<(), String>>();
@@ -100,7 +132,7 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 				map
 			})
 		} else {
-			generate_error_response(Some(&response.unwrap_err()))
+			generate_error_response(&response.unwrap_err())
 		}
 	})
 }
@@ -110,19 +142,19 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
-			return generate_error_response(Some("Name parameter is not a string"));
+			return generate_error_response("Name parameter is not a string");
 		};
 
-		let log_dir = if let Some(Value::String(dir)) = args.remove("log_dir") {
+		let log_dir = if let Some(Value::String(dir)) = args.remove("logDir") {
 			Some(dir)
 		} else {
 			None
 		};
 
-		let working_dir = if let Some(Value::String(dir)) = args.remove("working_dir") {
+		let working_dir = if let Some(Value::String(dir)) = args.remove("workingDir") {
 			dir
 		} else {
-			return generate_error_response(Some("Working dir is not a string"));
+			return generate_error_response("Working dir is not a string");
 		};
 
 		let mut config = if let Some(Value::Object(config)) = args.remove("config") {
@@ -130,12 +162,12 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 				name: if let Some(Value::String(value)) = config.remove("name") {
 					value
 				} else {
-					return generate_error_response(Some("Name is not present in config"));
+					return generate_error_response("Name is not present in config");
 				},
 				command: if let Some(Value::String(value)) = config.remove("command") {
 					value
 				} else {
-					return generate_error_response(Some("Command is not present in config"));
+					return generate_error_response("Command is not present in config");
 				},
 				interpreter: if let Some(Value::String(value)) = config.remove("interpreter") {
 					Some(value)
@@ -176,7 +208,7 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 				},
 			}
 		} else {
-			return generate_error_response(Some("Config is not an object"));
+			return generate_error_response("Config is not an object");
 		};
 
 		let status = if let Some(Value::String(status)) = args.remove("status") {
@@ -184,12 +216,12 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 				"running" => ModuleRunningStatus::Running,
 				"stopped" => ModuleRunningStatus::Stopped,
 				"offline" => {
-					return generate_error_response(Some("Nodes can't declare a module as offline"))
+					return generate_error_response("Nodes can't declare a module as offline")
 				}
-				_ => return generate_error_response(Some("Status is not a known value")),
+				_ => return generate_error_response("Status is not a known value"),
 			}
 		} else {
-			return generate_error_response(Some("Status is not a known value"));
+			return generate_error_response("Status is not a known value");
 		};
 
 		let last_started_at = if let Some(Value::Number(started_at)) = args.remove("lastStartedAt")
@@ -210,7 +242,7 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 				Number::Float(created_at) => created_at as u64,
 			}
 		} else {
-			return generate_error_response(Some("Created at is not a number"));
+			return generate_error_response("Created at is not a number");
 		};
 
 		let (sender, receiver) = channel::<Result<u64, String>>();
@@ -246,7 +278,7 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 				map
 			})
 		} else {
-			generate_error_response(Some(&response.unwrap_err()))
+			generate_error_response(&response.unwrap_err())
 		}
 	})
 }
@@ -256,7 +288,7 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
-			return generate_error_response(Some("Node parameter is not a string"));
+			return generate_error_response("Node parameter is not a string");
 		};
 
 		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
@@ -266,13 +298,13 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 				Number::Float(module_id) => module_id as u64,
 			}
 		} else {
-			return generate_error_response(Some("Module ID is not a number"));
+			return generate_error_response("Module ID is not a number");
 		};
 
 		let crash = if let Some(Value::Bool(crash)) = args.remove("crash") {
 			crash
 		} else {
-			return generate_error_response(Some("Module ID is not a number"));
+			return generate_error_response("Module ID is not a number");
 		};
 
 		let last_spawned_at =
@@ -283,7 +315,7 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 					Number::Float(last_spawned_at) => last_spawned_at as u64,
 				}
 			} else {
-				return generate_error_response(Some("Module ID is not a number"));
+				return generate_error_response("Module ID is not a number");
 			};
 
 		let (sender, receiver) = channel::<(bool, u64)>();
@@ -321,7 +353,7 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
-			return generate_error_response(Some("Node parameter is not a string"));
+			return generate_error_response("Node parameter is not a string");
 		};
 
 		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
@@ -331,7 +363,7 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 				Number::Float(module_id) => module_id as u64,
 			}
 		} else {
-			return generate_error_response(Some("Module ID is not a number"));
+			return generate_error_response("Module ID is not a number");
 		};
 
 		let last_spawned_at =
@@ -342,7 +374,7 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 					Number::Float(last_spawned_at) => last_spawned_at as u64,
 				}
 			} else {
-				return generate_error_response(Some("Module ID is not a number"));
+				return generate_error_response("Module ID is not a number");
 			};
 
 		MESSAGE_SENDER
@@ -399,40 +431,304 @@ fn module_deactivated(mut data: Value) {
 	});
 }
 
-fn get_node_module_from_object(mut object: HashMap<String, Value>) -> Option<ProcessData> {
-	let mut module = ProcessData {
-		log_dir: None,
-		working_dir: String::default(),
-		module_id: -1,
-		config: ModuleRunnerConfig {
-			name: String::default(),
-			command: String::default(),
-			interpreter: None,
-			args: None,
-			envs: None,
-		},
-		status: ModuleRunningStatus::Offline,
-		restarts: -1,
-		last_started_at: 0,
-		crashes: 0,
-		consequtive_crashes: 0,
-		created_at: 0,
-	};
+fn list_modules(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let (sender, receiver) = channel::<Result<Vec<String>, String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::ListModules { response: sender })
+			.await;
 
-	if let Some(Value::String(log_dir)) = object.remove("log_dir") {
-		module.log_dir = log_dir;
-	}
-
-	if let Some(Value::String(working_dir)) = object.remove("working_dir") {
-		module.working_dir = working_dir;
-	} else {
-		return None;
-	}
-
-	if let Some(Value::Object(map)) = object.remove("config") {}
+		let result = receiver.await.unwrap();
+		if let Ok(modules) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map.insert(
+					String::from("modules"),
+					Value::Array(
+						modules
+							.into_iter()
+							.map(|module| Value::String(module))
+							.collect(),
+					),
+				);
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
 }
 
-fn generate_error_response(error_message: Option<&str>) -> Value {
+fn list_nodes(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let (sender, receiver) = channel::<Vec<GuillotineNode>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::ListNodes { response: sender })
+			.await;
+
+		let nodes = receiver.await.unwrap();
+		Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(true));
+			map.insert(
+				String::from("nodes"),
+				Value::Array(
+					nodes
+						.into_iter()
+						.map(|node| {
+							Value::Object({
+								let mut map = HashMap::new();
+								map.insert(String::from("name"), Value::String(node.name));
+								map.insert(String::from("connected"), Value::Bool(node.connected));
+								map.insert(
+									String::from("modules"),
+									Value::Number(Number::PosInt(node.processes.len() as u64)),
+								);
+								map
+							})
+						})
+						.collect(),
+				),
+			);
+			map
+		})
+	})
+}
+
+fn list_all_processes(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let (sender, receiver) = channel::<Vec<(String, ProcessData)>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::ListAllProcesses { response: sender })
+			.await;
+
+		let processes = receiver.await.unwrap();
+		Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(true));
+			map.insert(
+				String::from("processes"),
+				Value::Array(
+					processes
+						.into_iter()
+						.map(|(node, process)| {
+							Value::Object({
+								let mut map = HashMap::new();
+
+								map.insert(
+									String::from("id"),
+									Value::Number(Number::PosInt(process.module_id)),
+								);
+								map.insert(
+									String::from("name"),
+									Value::String(process.config.name),
+								);
+
+								map.insert(
+									String::from("logDir"),
+									if let Some(log_dir) = process.log_dir {
+										Value::String(log_dir)
+									} else {
+										Value::Null
+									},
+								);
+								map.insert(
+									String::from("workingDir"),
+									Value::String(process.working_dir),
+								);
+
+								map.insert(
+									String::from("status"),
+									Value::String(String::from(match process.status {
+										ModuleRunningStatus::Running => "running",
+										ModuleRunningStatus::Stopped => "stopped",
+										ModuleRunningStatus::Offline => "offline",
+									})),
+								);
+								map.insert(String::from("node"), Value::String(node));
+								map.insert(
+									String::from("restarts"),
+									Value::Number(Number::NegInt(process.restarts)),
+								);
+								map.insert(
+									String::from("uptime"),
+									Value::Number(Number::PosInt(process.get_uptime())),
+								);
+								map.insert(
+									String::from("crashes"),
+									Value::Number(Number::PosInt(process.crashes)),
+								);
+								map.insert(
+									String::from("createdAt"),
+									Value::Number(Number::PosInt(process.created_at)),
+								);
+
+								map
+							})
+						})
+						.collect(),
+				),
+			);
+			map
+		})
+	})
+}
+
+fn list_processes(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let node_name = if let Some(Value::String(value)) = args.remove("node") {
+			value
+		} else {
+			return generate_error_response("Node parameter is not a string");
+		};
+
+		let (sender, receiver) = channel::<Result<Vec<ProcessData>, String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::ListProcesses {
+				node_name: node_name.clone(),
+				response: sender,
+			})
+			.await;
+
+		let result = receiver.await.unwrap();
+		if let Ok(processes) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map.insert(
+					String::from("processes"),
+					Value::Array(
+						processes
+							.into_iter()
+							.map(|process| {
+								Value::Object({
+									let mut map = HashMap::new();
+
+									map.insert(
+										String::from("id"),
+										Value::Number(Number::PosInt(process.module_id)),
+									);
+									map.insert(
+										String::from("name"),
+										Value::String(process.config.name),
+									);
+
+									map.insert(
+										String::from("logDir"),
+										if let Some(log_dir) = process.log_dir {
+											Value::String(log_dir)
+										} else {
+											Value::Null
+										},
+									);
+									map.insert(
+										String::from("workingDir"),
+										Value::String(process.working_dir),
+									);
+
+									map.insert(
+										String::from("status"),
+										Value::String(String::from(match process.status {
+											ModuleRunningStatus::Running => "running",
+											ModuleRunningStatus::Stopped => "stopped",
+											ModuleRunningStatus::Offline => "offline",
+										})),
+									);
+									map.insert(
+										String::from("node"),
+										Value::String(node_name.clone()),
+									);
+									map.insert(
+										String::from("restarts"),
+										Value::Number(Number::NegInt(process.restarts)),
+									);
+									map.insert(
+										String::from("uptime"),
+										Value::Number(Number::PosInt(process.get_uptime())),
+									);
+									map.insert(
+										String::from("crashes"),
+										Value::Number(Number::PosInt(process.crashes)),
+									);
+									map.insert(
+										String::from("createdAt"),
+										Value::Number(Number::PosInt(process.created_at)),
+									);
+
+									map
+								})
+							})
+							.collect(),
+					),
+				);
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn restart_process(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(), String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::RestartProcess {
+				module_id,
+				response: sender,
+			})
+			.await;
+
+		let result = receiver.await.unwrap();
+		if result.is_ok() {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn generate_error_response(error_message: &str) -> Value {
 	Value::Object({
 		let mut map = HashMap::new();
 
