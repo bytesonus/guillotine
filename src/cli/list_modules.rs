@@ -2,18 +2,9 @@ use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, util
 
 use cli_table::{
 	format::{
-		Align,
-		Border,
-		CellFormat,
-		Color,
-		HorizontalLine,
-		Separator,
-		TableFormat,
-		VerticalLine,
+		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
 	},
-	Cell,
-	Row,
-	Table,
+	Cell, Row, Table,
 };
 use std::collections::HashMap;
 

@@ -4,5 +4,5 @@ mod runner;
 
 pub mod juno_module;
 
-pub use runner::{on_exit, run};
 pub use process::Process;
+pub use runner::{on_exit, run};

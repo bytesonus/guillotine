@@ -3,22 +3,11 @@ use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, util
 use clap::ArgMatches;
 use cli_table::{
 	format::{
-		Align,
-		Border,
-		CellFormat,
-		Color,
-		HorizontalLine,
-		Separator,
-		TableFormat,
-		VerticalLine,
+		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
 	},
-	Cell,
-	Row,
-	Table,
+	Cell, Row, Table,
 };
-use juno::{
-	models::{Number, Value},
-};
+use juno::models::{Number, Value};
 use std::collections::HashMap;
 
 pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
@@ -166,8 +155,8 @@ pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 			Cell::new(
 				&format!(
 					"{}",
-					if pid ==
-						process
+					if pid
+						== process
 							.get("id")
 							.unwrap()
 							.as_number()

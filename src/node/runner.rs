@@ -287,7 +287,11 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 							response.send(Err(String::from("Could not find any process with that moduleId in this runner. Is this stale data?"))).unwrap();
 							continue;
 						}
-						ids_to_processes.get_mut(&module_id).unwrap().respawn().await;
+						ids_to_processes
+							.get_mut(&module_id)
+							.unwrap()
+							.respawn()
+							.await;
 						response.send(Ok(())).unwrap();
 					}
 					msg => panic!("Unhandled guillotine message: {:#?}", msg),

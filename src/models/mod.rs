@@ -6,15 +6,8 @@ mod process_data;
 pub mod parser;
 
 pub use config_data::{
-	ConfigTarget,
-	GuillotineConfig,
-	GuillotinePerEnvConfig,
-	HostConfig,
-	ModuleConfig,
-	ModuleRunnerConfig,
-	ModuleRunningStatus,
-	NodeConfig,
-	RunnerConfig,
+	ConfigTarget, GuillotineConfig, GuillotinePerEnvConfig, HostConfig, ModuleConfig,
+	ModuleRunnerConfig, ModuleRunningStatus, NodeConfig, RunnerConfig,
 };
 pub use guillotine_message::GuillotineMessage;
 pub use guillotine_node::GuillotineNode;

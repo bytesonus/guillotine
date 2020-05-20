@@ -8,8 +8,8 @@ pub use list_modules::list_modules;
 pub use list_processes::list_processes;
 pub use restart_process::restart_process;
 
-use chrono::{prelude::*, Utc};
 use crate::models::RunnerConfig;
+use chrono::{prelude::*, Utc};
 use juno::JunoModule;
 
 pub async fn on_exit() {}
