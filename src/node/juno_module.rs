@@ -90,6 +90,7 @@ pub async fn register_module(
 ) -> Result<u64, String> {
 	let args = HashMap::new();
 
+	args.insert(String::from("node"), Value::String(node_name.clone()));
 	if let Some(log_dir) = process.log_dir {
 		args.insert(String::from("logDir"), Value::String(log_dir));
 	}

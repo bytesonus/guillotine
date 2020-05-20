@@ -2,11 +2,7 @@ use crate::{
 	exec::process::ProcessRunner,
 	host::juno_module,
 	models::{
-		GuillotineMessage,
-		GuillotineNode,
-		HostConfig,
-		ModuleRunnerConfig,
-		ModuleRunningStatus,
+		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
 		RunnerConfig,
 	},
 	utils::{constants, logger},
@@ -232,7 +228,6 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 						node_name,
 						module_id,
 						crash,
-						last_spawned_at,
 						response,
 					} => {
 						let runner = node_runners.get_mut(&node_name);
@@ -261,12 +256,12 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 							} else {
 								// The process has crashed less than 10 times consequtively.
 								// Wait for a while and restart the process
-								process.last_started_at = last_spawned_at;
+								process.last_started_at = get_current_millis();
 								response.send((true, 100)).unwrap();
 								process.status = ModuleRunningStatus::Running;
 							}
 						} else {
-							process.last_started_at = last_spawned_at;
+							process.last_started_at = get_current_millis();
 							response.send((true, 0)).unwrap();
 							process.status = ModuleRunningStatus::Running;
 						}
@@ -406,23 +401,47 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 								},
 							)
 							.await;
-						if result.is_err() {
+						if let Err(error) = result {
 							response
-								.send(Err(format!(
-									"Error sending the restart command: {}",
-									result.unwrap_err()
-								)))
+								.send(Err(format!("Error sending the restart command: {}", error)))
 								.unwrap();
 							continue;
 						}
-						let result = result.unwrap().as_object().unwrap();
-
-						if !*result.get("success").unwrap().as_bool().unwrap() {
+						let result = if let Value::Object(args) = result.unwrap() {
+							args
+						} else {
 							response
 								.send(Err(format!(
-									"Error restarting process: {}",
-									result.get("error").unwrap().as_string().unwrap()
+									"Response of restart command wasn't an object. Got: {:#?}",
+									result.unwrap()
 								)))
+								.unwrap();
+							continue;
+						};
+
+						let success = if let Some(Value::Bool(success)) = result.remove("success") {
+							success
+						} else {
+							response
+								.send(Err(format!(
+									"Success key of restart command wasn't a bool. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						if !success {
+							response
+								.send(Err(
+									if let Some(Value::String(error)) = result.remove("error") {
+										format!("Error restarting process: {}", error)
+									} else {
+										format!(
+											"Error key of restart command wasn't a string. Got: {:#?}",
+											result
+										)
+									},
+								))
 								.unwrap();
 							continue;
 						}
@@ -495,7 +514,7 @@ async fn connect_to_unix_socket(_: &str) -> Result<(), Error> {
 	panic!("Unix sockets are not supported on Windows");
 }
 
-fn get_current_millis() -> u128 {
+fn get_current_millis() -> u64 {
 	SystemTime::now()
 		.duration_since(UNIX_EPOCH)
 		.expect("Time went backwards. Wtf?")

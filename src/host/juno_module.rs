@@ -307,17 +307,6 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 			return generate_error_response("Module ID is not a number");
 		};
 
-		let last_spawned_at =
-			if let Some(Value::Number(last_spawned_at)) = args.remove("lastSpawnedAt") {
-				match last_spawned_at {
-					Number::PosInt(last_spawned_at) => last_spawned_at,
-					Number::NegInt(last_spawned_at) => last_spawned_at as u64,
-					Number::Float(last_spawned_at) => last_spawned_at as u64,
-				}
-			} else {
-				return generate_error_response("Module ID is not a number");
-			};
-
 		let (sender, receiver) = channel::<(bool, u64)>();
 		MESSAGE_SENDER
 			.read()
@@ -329,7 +318,6 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 				node_name,
 				module_id,
 				crash,
-				last_spawned_at,
 				response: sender,
 			})
 			.await;

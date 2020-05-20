@@ -18,7 +18,6 @@ pub enum GuillotineMessage {
 		node_name: String,
 		module_id: u64,
 		crash: bool,
-		last_spawned_at: u64,
 		response: Sender<(bool, u64)>, // (should_restart, wait_duration_millis)
 	},
 	ProcessRunning {

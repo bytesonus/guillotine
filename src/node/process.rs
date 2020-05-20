@@ -11,6 +11,8 @@ pub struct Process {
 	pub working_dir: String,
 	pub last_started_at: u64,
 	pub created_at: u64,
+	pub start_scheduled_at: Option<u64>,
+	pub has_been_crashing: bool,
 }
 
 impl Process {
@@ -26,6 +28,8 @@ impl Process {
 			working_dir,
 			last_started_at: 0,
 			created_at: get_current_time(),
+			start_scheduled_at: None,
+			has_been_crashing: false,
 		}
 	}
 
@@ -46,6 +50,10 @@ impl Process {
 			Ok(None) => (true, false),
 			Err(error) => (false, true),
 		}
+	}
+
+	pub async fn respawn(&mut self) {
+		// TODO
 	}
 }
 
