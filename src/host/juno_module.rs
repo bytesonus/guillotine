@@ -41,10 +41,7 @@ pub async fn setup_host_module(
 	module
 		.initialize(constants::APP_NAME, constants::APP_VERSION, HashMap::new())
 		.await
-		.expect(&format!(
-			"Could not initialize {} Juno Module",
-			constants::APP_NAME
-		));
+		.unwrap_or_else(|_| panic!("Could not initialize {} Juno Module", constants::APP_NAME));
 
 	module
 		.declare_function("registerNode", register_node)
@@ -122,7 +119,7 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 			.unwrap();
 
 		let response = receiver.await.unwrap();
-		if response.is_ok() {
+		if let Ok(()) = response {
 			Value::Object({
 				let mut map = HashMap::new();
 				map.insert(String::from("success"), Value::Bool(true));
@@ -251,14 +248,14 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 			.clone()
 			.send(GuillotineMessage::RegisterProcess {
 				node_name,
-				process_data: ProcessData::new(
+				process_data: Box::new(ProcessData::new(
 					log_dir,
 					working_dir,
 					config,
 					status,
 					last_started_at,
 					created_at,
-				),
+				)),
 				response: sender,
 			})
 			.await
@@ -440,12 +437,7 @@ fn list_modules(_: HashMap<String, Value>) -> Value {
 				map.insert(String::from("success"), Value::Bool(true));
 				map.insert(
 					String::from("modules"),
-					Value::Array(
-						modules
-							.into_iter()
-							.map(|module| Value::String(module))
-							.collect(),
-					),
+					Value::Array(modules.into_iter().map(Value::String).collect()),
 				);
 				map
 			})
@@ -644,10 +636,7 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 										String::from("id"),
 										Value::Number(Number::PosInt(module_id)),
 									);
-									map.insert(
-										String::from("name"),
-										Value::String(config.name.clone()),
-									);
+									map.insert(String::from("name"), Value::String(config.name));
 
 									map.insert(
 										String::from("logDir"),
@@ -732,7 +721,7 @@ fn restart_process(mut args: HashMap<String, Value>) -> Value {
 			.unwrap();
 
 		let result = receiver.await.unwrap();
-		if result.is_ok() {
+		if let Ok(()) = result {
 			Value::Object({
 				let mut map = HashMap::new();
 				map.insert(String::from("success"), Value::Bool(true));

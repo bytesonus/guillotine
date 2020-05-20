@@ -199,7 +199,7 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 
 							// There's a stale module re-registering itself.
 							process_data.module_id = process.unwrap().module_id;
-							runner.register_process(process_data.clone());
+							runner.register_process(process_data.as_ref().clone());
 
 							response.send(Ok(process_data.module_id)).unwrap();
 							continue;
@@ -218,7 +218,7 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 						let assigned_pid = pid;
 						pid += 1;
 						process_data.module_id = assigned_pid;
-						runner.register_process(process_data);
+						runner.register_process(process_data.as_ref().clone());
 
 						response.send(Ok(assigned_pid)).unwrap();
 					}
@@ -496,7 +496,7 @@ async fn try_connecting_to_juno(host: &HostConfig) -> bool {
 			connection = TcpStream::connect(&port).await;
 			return connection.is_ok();
 		}
-		return true;
+		true
 	} else if host.connection_type == constants::connection_type::UNIX_SOCKET {
 		let unix_socket = host.socket_path.as_ref().unwrap();
 		let mut connection = connect_to_unix_socket(unix_socket).await;
@@ -506,7 +506,7 @@ async fn try_connecting_to_juno(host: &HostConfig) -> bool {
 			connection = connect_to_unix_socket(unix_socket).await;
 			return connection.is_ok();
 		}
-		return true;
+		true
 	} else {
 		panic!("Connection type is neither unix socket not inet socket. How did you get here?");
 	}

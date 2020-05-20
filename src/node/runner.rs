@@ -65,7 +65,7 @@ pub async fn on_exit() {
 async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_processes: Vec<Process>) {
 	// Initialize the guillotine juno module
 	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
-	let response = juno_module::setup_module(&node_name, &node, sender.clone()).await;
+	let response = juno_module::setup_module(node_name.clone(), &node, sender.clone()).await;
 	if let Err(error) = response {
 		logger::error(&format!("Error setting up Juno module: {}", error));
 		return;
@@ -77,7 +77,7 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 	// First, register all the auto_start_processes
 	for mut process in auto_start_processes {
 		let response =
-			juno_module::register_module(&node_name, &mut juno_module, &mut process).await;
+			juno_module::register_module(node_name.clone(), &mut juno_module, &mut process).await;
 		if let Ok(module_id) = response {
 			// Then, store their assigned moduleIds in a hashmap.
 			ids_to_processes.insert(module_id, process);
@@ -198,72 +198,70 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 					// the process will automatically be started
 					} else {
 						// Process is running
-						if process.has_been_crashing {
-							if get_current_time() - process.last_started_at > 1000 {
-								// The process has been crashing in the immediate past,
-								// and has now been running for more than a second.
-								// Notify the host that the process is now running,
-								// and remove the crashing flag to stop discriminating against this process
-								let response = juno_module
-									.call_function(
-										&format!("{}.onProcessRunning", constants::APP_NAME),
-										{
-											let mut map = HashMap::new();
-											map.insert(
-												String::from("node"),
-												Value::String(node_name.clone()),
-											);
-											map.insert(
-												String::from("moduleId"),
-												Value::Number(Number::PosInt(*module_id)),
-											);
-											map.insert(
-												String::from("lastSpawnedAt"),
-												Value::Number(Number::PosInt(
-													process.last_started_at,
-												)),
-											);
-											map
-										},
-									)
-									.await;
-								if let Err(error) = response {
-									logger::error(&format!(
-										"Error calling the running function: {}",
-										error
-									));
-									continue;
-								}
-								let response = response.unwrap();
-
-								let mut args = if let Value::Object(args) = response {
-									args
-								} else {
-									logger::error("Response is not an object. Malformed response");
-									continue;
-								};
-								let success =
-									if let Some(Value::Bool(success)) = args.remove("success") {
-										success
-									} else {
-										logger::error(
-											"Could not find success key in the response. Malformed object",
-										);
-										continue;
-									};
-
-								if !success {
-									logger::error(&if let Some(Value::String(error_msg)) =
-										args.remove("error")
+						if process.has_been_crashing
+							&& get_current_time() - process.last_started_at > 1000
+						{
+							// The process has been crashing in the immediate past,
+							// and has now been running for more than a second.
+							// Notify the host that the process is now running,
+							// and remove the crashing flag to stop discriminating against this process
+							let response = juno_module
+								.call_function(
+									&format!("{}.onProcessRunning", constants::APP_NAME),
 									{
-										error_msg
-									} else {
-										String::from("Could not find error key in false success response. Malformed object")
-									});
-									continue;
-								}
-								process.has_been_crashing = false;
+										let mut map = HashMap::new();
+										map.insert(
+											String::from("node"),
+											Value::String(node_name.clone()),
+										);
+										map.insert(
+											String::from("moduleId"),
+											Value::Number(Number::PosInt(*module_id)),
+										);
+										map.insert(
+											String::from("lastSpawnedAt"),
+											Value::Number(Number::PosInt(process.last_started_at)),
+										);
+										map
+									},
+								)
+								.await;
+							if let Err(error) = response {
+								logger::error(&format!(
+									"Error calling the running function: {}",
+									error
+								));
+								continue;
 							}
+							let response = response.unwrap();
+
+							let mut args = if let Value::Object(args) = response {
+								args
+							} else {
+								logger::error("Response is not an object. Malformed response");
+								continue;
+							};
+							let success = if let Some(Value::Bool(success)) = args.remove("success")
+							{
+								success
+							} else {
+								logger::error(
+									"Could not find success key in the response. Malformed object",
+								);
+								continue;
+							};
+
+							if !success {
+								logger::error(&if let Some(Value::String(error_msg)) =
+									args.remove("error")
+								{
+									error_msg
+								} else {
+									String::from("Could not find error key in false success response. Malformed object")
+								});
+								continue;
+							}
+							process.has_been_crashing = false;
 						}
 					}
 				}
@@ -313,7 +311,7 @@ async fn try_connecting_to_host(node: &NodeConfig) -> bool {
 			connection = TcpStream::connect(&port).await;
 			return connection.is_ok();
 		}
-		return true;
+		true
 	} else if node.connection_type == constants::connection_type::UNIX_SOCKET {
 		let unix_socket = node.socket_path.clone().unwrap();
 		let mut connection = connect_to_unix_socket(&unix_socket).await;
@@ -323,7 +321,7 @@ async fn try_connecting_to_host(node: &NodeConfig) -> bool {
 			connection = connect_to_unix_socket(&unix_socket).await;
 			return connection.is_ok();
 		}
-		return true;
+		true
 	} else {
 		panic!("Connection type is neither unix socket not inet socket. How did you get here?");
 	}

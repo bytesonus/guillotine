@@ -11,7 +11,7 @@ pub enum GuillotineMessage {
 	},
 	RegisterProcess {
 		node_name: String,
-		process_data: ProcessData,
+		process_data: Box<ProcessData>,
 		response: Sender<Result<u64, String>>,
 	},
 	ProcessExited {

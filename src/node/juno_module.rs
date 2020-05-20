@@ -21,7 +21,7 @@ lazy_static! {
 }
 
 pub async fn setup_module(
-	node_name: &String,
+	node_name: String,
 	node: &NodeConfig,
 	sender: UnboundedSender<GuillotineMessage>,
 ) -> Result<JunoModule, String> {
@@ -51,7 +51,7 @@ pub async fn setup_module(
 	let response = juno_module
 		.call_function(&format!("{}.registerNode", constants::APP_NAME), {
 			let mut map = HashMap::new();
-			map.insert(String::from("name"), Value::String(node_name.clone()));
+			map.insert(String::from("name"), Value::String(node_name));
 			map
 		})
 		.await
@@ -61,36 +61,36 @@ pub async fn setup_module(
 		if response.remove("success").unwrap() == Value::Bool(true) {
 			Ok(juno_module)
 		} else if let Some(error) = response.remove("error") {
-			return Err(if let Value::String(error) = error {
+			Err(if let Value::String(error) = error {
 				error
 			} else {
 				return Err(format!(
 					"Expected a string response for error. Got: {:#?}",
 					error
 				));
-			});
+			})
 		} else {
-			return Err(format!(
+			Err(format!(
 				"Expected a boolean success key in the response. Malformed object: {:#?}",
 				response
-			));
+			))
 		}
 	} else {
-		return Err(format!(
+		Err(format!(
 			"Expected an object response while registering process. Got: {:#?}",
 			response
-		));
+		))
 	}
 }
 
 pub async fn register_module(
-	node_name: &String,
+	node_name: String,
 	juno_module: &mut JunoModule,
 	process: &mut Process,
 ) -> Result<u64, String> {
 	let mut args = HashMap::new();
 
-	args.insert(String::from("node"), Value::String(node_name.clone()));
+	args.insert(String::from("node"), Value::String(node_name));
 	if let Some(log_dir) = process.log_dir.clone() {
 		args.insert(String::from("logDir"), Value::String(log_dir));
 	}
@@ -175,30 +175,30 @@ pub async fn register_module(
 					Number::Float(module_id) => module_id as u64,
 				})
 			} else {
-				return Err(format!(
+				Err(format!(
 					"Expected a string response for moduleId. Got: {:#?}",
 					module_id
-				));
+				))
 			}
 		} else if let Some(error) = response.remove("error") {
-			return Err(if let Value::String(error) = error {
+			Err(if let Value::String(error) = error {
 				error
 			} else {
 				return Err(format!(
 					"Expected a string response for error. Got: {:#?}",
 					error
 				));
-			});
+			})
 		} else {
-			return Err(String::from(
+			Err(String::from(
 				"Expected a boolean success key in the response. Malformed object",
-			));
+			))
 		}
 	} else {
-		return Err(format!(
+		Err(format!(
 			"Expected an object response while registering process. Got: {:#?}",
 			response
-		));
+		))
 	}
 }
 
@@ -229,7 +229,7 @@ fn respawn_process(mut args: HashMap<String, Value>) -> Value {
 			.unwrap();
 
 		let result = receiver.await.unwrap();
-		if result.is_ok() {
+		if let Ok(()) = result {
 			Value::Object({
 				let mut map = HashMap::new();
 				map.insert(String::from("success"), Value::Bool(true));

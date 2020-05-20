@@ -9,24 +9,21 @@ pub struct GuillotineNode {
 
 impl GuillotineNode {
 	pub fn get_process_by_name(&self, name: &str) -> Option<&ProcessData> {
-		return self
-			.processes
+		self.processes
 			.iter()
-			.find(|process| process.config.name == name);
+			.find(|process| process.config.name == name)
 	}
 
 	pub fn get_process_by_id(&self, id: u64) -> Option<&ProcessData> {
-		return self
-			.processes
+		self.processes
 			.iter()
-			.find(|process| process.module_id == id);
+			.find(|process| process.module_id == id)
 	}
 
 	pub fn get_process_by_id_mut(&mut self, id: u64) -> Option<&mut ProcessData> {
-		return self
-			.processes
+		self.processes
 			.iter_mut()
-			.find(|process| process.module_id == id);
+			.find(|process| process.module_id == id)
 	}
 
 	pub fn register_process(&mut self, process_data: ProcessData) {

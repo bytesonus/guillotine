@@ -173,9 +173,9 @@ fn constrain_string_to(array: Vec<String>, max_length: usize) -> String {
 	let total_string = array.join(", ");
 	if total_string.len() > max_length {
 		let mut total_string: String = total_string.chars().take(max_length - 3).collect();
-		total_string.extend("...".chars());
+		total_string.push_str("...");
 		total_string
-	} else if total_string.len() == 0 {
+	} else if total_string.is_empty() {
 		String::from("-")
 	} else {
 		total_string

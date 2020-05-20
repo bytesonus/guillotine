@@ -31,8 +31,6 @@ pub async fn run(mut config: RunnerConfig) {
 		join(host::run(config.clone()), node::run(config)).await;
 	} else if config.node.is_some() {
 		node::run(config).await;
-	} else {
-		return;
 	}
 }
 
