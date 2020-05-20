@@ -9,8 +9,34 @@ pub use list_processes::list_processes;
 pub use restart_process::restart_process;
 
 use chrono::{prelude::*, Utc};
+use crate::models::RunnerConfig;
+use juno::JunoModule;
 
 pub async fn on_exit() {}
+
+fn get_juno_module_from_config(config: &RunnerConfig) -> Result<JunoModule, &str> {
+	if let Some(host) = config.host {
+		if host.connection_type == "unix_socket" {
+			let socket_path = host.socket_path.as_ref().unwrap();
+			Ok(JunoModule::from_unix_socket(socket_path))
+		} else {
+			let port = host.port.as_ref().unwrap();
+			let bind_addr = host.bind_addr.as_ref().unwrap();
+			Ok(JunoModule::from_inet_socket(&bind_addr, *port))
+		}
+	} else if let Some(node) = config.node {
+		if node.connection_type == "unix_socket" {
+			let socket_path = node.socket_path.as_ref().unwrap();
+			Ok(JunoModule::from_unix_socket(socket_path))
+		} else {
+			let port = node.port.as_ref().unwrap();
+			let ip = node.ip.as_ref().unwrap();
+			Ok(JunoModule::from_inet_socket(&ip, *port))
+		}
+	} else {
+		Err("Neither host, nor node are set. Invalid configuration found")
+	}
+}
 
 fn get_date_time(timestamp: i64) -> String {
 	Utc.timestamp_millis(timestamp)

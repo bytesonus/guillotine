@@ -22,7 +22,6 @@ extern crate nix;
 extern crate winapi;
 
 mod cli;
-mod exec;
 mod host;
 mod models;
 mod node;

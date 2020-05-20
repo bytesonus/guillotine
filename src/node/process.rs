@@ -55,6 +55,14 @@ impl Process {
 	pub async fn respawn(&mut self) {
 		// TODO
 	}
+
+	pub async fn send_quit_signal(&mut self) {
+		// TODO
+	}
+
+	pub async fn kill(&mut self) {
+		// TODO
+	}
 }
 
 fn get_current_time() -> u64 {

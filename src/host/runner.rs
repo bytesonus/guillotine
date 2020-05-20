@@ -1,11 +1,10 @@
 use crate::{
-	exec::process::ProcessRunner,
 	host::juno_module,
 	models::{
 		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
 		RunnerConfig,
 	},
-	utils::{constants, logger},
+	utils::{constants, logger}, node::Process,
 };
 use std::{
 	collections::HashMap,
@@ -33,8 +32,7 @@ pub async fn run(mut config: RunnerConfig) {
 
 	let juno_process = if host.connection_type == constants::connection_type::UNIX_SOCKET {
 		let socket_path = host.socket_path.clone().unwrap();
-		ProcessRunner::new(
-			0,
+		Process::new(
 			ModuleRunnerConfig::juno_default(
 				host.path,
 				vec![String::from("--socket-location"), socket_path],
@@ -59,8 +57,7 @@ pub async fn run(mut config: RunnerConfig) {
 	} else {
 		let port = host.port.unwrap();
 		let bind_addr = host.bind_addr.clone().unwrap();
-		ProcessRunner::new(
-			0,
+		Process::new(
 			ModuleRunnerConfig::juno_default(
 				host.path.clone(),
 				vec![
@@ -96,9 +93,9 @@ pub async fn on_exit() {
 	*CLOSE_FLAG.lock().await = true;
 }
 
-async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfig) {
+async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 	// Spawn juno before spawing any modules
-	while !juno_process.is_process_running() {
+	while !juno_process.is_process_running().0 {
 		juno_process.respawn().await;
 		try_connecting_to_juno(&juno_config).await;
 	}
@@ -124,7 +121,7 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 				command_future = next_command_future;
 				timer_future = Delay::new(Duration::from_millis(100));
 
-				if juno_process.is_process_running() {
+				if juno_process.is_process_running().0 {
 					continue;
 				}
 				// juno_process isn't running. Restart it
@@ -455,7 +452,7 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 
 	// TODO: Tell all nodes to quit their processes first
 
-	logger::info(&format!("Quitting process: {}", juno_process.get_name()));
+	logger::info(&format!("Quitting process: {}", juno_process.runner_config.name));
 	juno_process.send_quit_signal();
 	let quit_time = get_current_millis();
 	loop {
@@ -463,13 +460,13 @@ async fn keep_host_alive(mut juno_process: ProcessRunner, juno_config: HostConfi
 		task::sleep(Duration::from_millis(100)).await;
 
 		// If the process is not running, then break
-		if !juno_process.is_process_running() {
+		if !juno_process.is_process_running().0 {
 			break;
 		}
 		// If the processes is running, check if it's been given enough time.
 		if get_current_millis() > quit_time + 1000 {
 			// It's been trying to quit for more than 1 second. Kill it and quit
-			logger::info(&format!("Killing process: {}", juno_process.get_name()));
+			logger::info(&format!("Killing process: {}", juno_process.runner_config.name));
 			juno_process.kill();
 			break;
 		}

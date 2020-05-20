@@ -1,4 +1,4 @@
-use crate::{logger, models::RunnerConfig, utils::constants};
+use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, utils::constants};
 
 use clap::ArgMatches;
 use cli_table::{
@@ -18,18 +18,20 @@ use cli_table::{
 };
 use juno::{
 	models::{Number, Value},
-	JunoModule,
 };
 use std::collections::HashMap;
 
 pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
-	let mut module = if config.juno.connection_type == "unix_socket" {
-		let socket_path = config.juno.socket_path.as_ref().unwrap();
-		JunoModule::from_unix_socket(&socket_path)
+	let result = get_juno_module_from_config(&config);
+	let mut module = if let Ok(module) = result {
+		module
 	} else {
-		let port = config.juno.port.as_ref().unwrap();
-		let bind_addr = config.juno.bind_addr.as_ref().unwrap();
-		JunoModule::from_inet_socket(&bind_addr, *port)
+		logger::error(if let Err(err) = result {
+			err
+		} else {
+			return;
+		});
+		return;
 	};
 	let pid = args.value_of("pid");
 	if pid.is_none() {
