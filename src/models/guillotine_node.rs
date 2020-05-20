@@ -22,6 +22,13 @@ impl GuillotineNode {
 			.find(|process| process.module_id == id);
 	}
 
+	pub fn get_process_by_id_mut(&mut self, id: u64) -> Option<&mut ProcessData> {
+		return self
+			.processes
+			.iter_mut()
+			.find(|process| process.module_id == id);
+	}
+
 	pub fn register_process(&mut self, process_data: ProcessData) {
 		let position = self
 			.processes

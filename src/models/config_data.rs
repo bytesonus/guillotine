@@ -48,6 +48,7 @@ pub struct NodeConfig {
 	pub socket_path: Option<String>,
 }
 
+#[derive(Deserialize, Debug, Clone)]
 pub struct ModuleConfig {
 	pub directory: String,
 }

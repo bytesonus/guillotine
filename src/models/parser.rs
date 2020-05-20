@@ -112,7 +112,7 @@ async fn parse_config(mut input: RunnerConfig) -> Result<RunnerConfig> {
 	}
 
 	if input.host.is_some() {
-		let host = input.host.unwrap();
+		let mut host = input.host.unwrap();
 		host.path = fs::canonicalize(host.path)
 			.await
 			.unwrap()
@@ -154,7 +154,7 @@ async fn parse_config(mut input: RunnerConfig) -> Result<RunnerConfig> {
 
 		input.host = Some(host);
 	} else if input.node.is_some() {
-		let node = input.node.unwrap();
+		let mut node = input.node.unwrap();
 		if node.connection_type == "unix_socket" {
 			if node.socket_path.is_none() {
 				return throw_parse_error();

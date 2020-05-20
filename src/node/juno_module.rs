@@ -27,10 +27,10 @@ pub async fn setup_module(
 ) -> Result<JunoModule, String> {
 	MESSAGE_SENDER.write().await.replace(sender);
 
-	let juno_module = if node.connection_type == constants::connection_type::UNIX_SOCKET {
-		JunoModule::from_unix_socket(&node.socket_path.unwrap())
+	let mut juno_module = if node.connection_type == constants::connection_type::UNIX_SOCKET {
+		JunoModule::from_unix_socket(node.socket_path.as_ref().unwrap())
 	} else {
-		JunoModule::from_inet_socket(&node.ip.unwrap(), node.port.unwrap())
+		JunoModule::from_inet_socket(node.ip.as_ref().unwrap(), node.port.unwrap())
 	};
 
 	juno_module
@@ -50,14 +50,14 @@ pub async fn setup_module(
 	// Register node here
 	let response = juno_module
 		.call_function(&format!("{}.registerNode", constants::APP_NAME), {
-			let map = HashMap::new();
+			let mut map = HashMap::new();
 			map.insert(String::from("name"), Value::String(node_name.clone()));
 			map
 		})
 		.await
 		.unwrap();
 
-	if let Value::Object(response) = response {
+	if let Value::Object(mut response) = response {
 		if response.remove("success").unwrap() == Value::Bool(true) {
 			Ok(juno_module)
 		} else if let Some(error) = response.remove("error") {
@@ -85,23 +85,23 @@ pub async fn setup_module(
 
 pub async fn register_module(
 	node_name: &String,
-	juno_module: &JunoModule,
-	process: &Process,
+	juno_module: &mut JunoModule,
+	process: &mut Process,
 ) -> Result<u64, String> {
-	let args = HashMap::new();
+	let mut args = HashMap::new();
 
 	args.insert(String::from("node"), Value::String(node_name.clone()));
-	if let Some(log_dir) = process.log_dir {
+	if let Some(log_dir) = process.log_dir.clone() {
 		args.insert(String::from("logDir"), Value::String(log_dir));
 	}
 	args.insert(
 		String::from("workingDir"),
-		Value::String(process.working_dir),
+		Value::String(process.working_dir.clone()),
 	);
 	args.insert(
 		String::from("config"),
 		Value::Object({
-			let map = HashMap::new();
+			let mut map = HashMap::new();
 			map.insert(
 				String::from("name"),
 				Value::String(process.runner_config.name.clone()),
@@ -110,16 +110,16 @@ pub async fn register_module(
 				String::from("command"),
 				Value::String(process.runner_config.command.clone()),
 			);
-			if let Some(interpreter) = process.runner_config.interpreter {
+			if let Some(interpreter) = process.runner_config.interpreter.clone() {
 				map.insert(String::from("intepreter"), Value::String(interpreter));
 			}
-			if let Some(args) = process.runner_config.args {
+			if let Some(args) = process.runner_config.args.clone() {
 				map.insert(
 					String::from("args"),
 					Value::Array(args.into_iter().map(Value::String).collect()),
 				);
 			}
-			if let Some(envs) = process.runner_config.envs {
+			if let Some(envs) = process.runner_config.envs.clone() {
 				map.insert(
 					String::from("args"),
 					Value::Object(
@@ -154,7 +154,7 @@ pub async fn register_module(
 		.await
 		.unwrap();
 
-	if let Value::Object(response) = response {
+	if let Value::Object(mut response) = response {
 		if !response.contains_key("success") {
 			return Err(String::from(
 				"Could not find success key in the response. Malformed object",
@@ -202,7 +202,7 @@ pub async fn register_module(
 	}
 }
 
-fn respawn_process(args: HashMap<String, Value>) -> Value {
+fn respawn_process(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
 		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
 			match module_id {
@@ -225,7 +225,8 @@ fn respawn_process(args: HashMap<String, Value>) -> Value {
 				module_id,
 				response: sender,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		let result = receiver.await.unwrap();
 		if result.is_ok() {
@@ -245,12 +246,10 @@ fn generate_error_response(error_message: &str) -> Value {
 		let mut map = HashMap::new();
 
 		map.insert(String::from("success"), Value::Bool(false));
-		if error_message.is_some() {
-			map.insert(
-				String::from("error"),
-				Value::String(String::from(error_message.unwrap())),
-			);
-		}
+		map.insert(
+			String::from("error"),
+			Value::String(String::from(error_message)),
+		);
 
 		map
 	})

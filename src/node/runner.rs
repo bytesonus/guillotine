@@ -19,7 +19,7 @@ lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
 }
 
-pub async fn run(config: RunnerConfig) {
+pub async fn run(mut config: RunnerConfig) {
 	if config.name.is_none() {
 		logger::error("Node name cannot be null");
 		return;
@@ -70,13 +70,14 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 		logger::error(&format!("Error setting up Juno module: {}", error));
 		return;
 	}
-	let juno_module = response.unwrap();
+	let mut juno_module = response.unwrap();
 
-	let ids_to_processes = HashMap::new();
+	let mut ids_to_processes = HashMap::new();
 
 	// First, register all the auto_start_processes
-	for process in auto_start_processes {
-		let response = juno_module::register_module(&node_name, &juno_module, &process).await;
+	for mut process in auto_start_processes {
+		let response =
+			juno_module::register_module(&node_name, &mut juno_module, &mut process).await;
 		if let Ok(module_id) = response {
 			// Then, store their assigned moduleIds in a hashmap.
 			ids_to_processes.insert(module_id, process);
@@ -105,7 +106,7 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 				timer_future = Delay::new(Duration::from_millis(100));
 
 				// Check if all the processes are doing okay
-				for (module_id, process) in ids_to_processes {
+				for (module_id, process) in ids_to_processes.iter_mut() {
 					if let (false, crashed) = process.is_process_running() {
 						// Process ain't running.
 
@@ -128,11 +129,11 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 
 						let response = juno_module
 							.call_function(&format!("{}.onProcessExited", constants::APP_NAME), {
-								let map = HashMap::new();
+								let mut map = HashMap::new();
 								map.insert(String::from("node"), Value::String(node_name.clone()));
 								map.insert(
 									String::from("moduleId"),
-									Value::Number(Number::PosInt(module_id)),
+									Value::Number(Number::PosInt(*module_id)),
 								);
 								map.insert(String::from("crash"), Value::Bool(crashed));
 								map
@@ -144,7 +145,7 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 						}
 						let response = response.unwrap();
 
-						let args = if let Value::Object(args) = response {
+						let mut args = if let Value::Object(args) = response {
 							args
 						} else {
 							logger::error("Response is not an object. Malformed response");
@@ -160,13 +161,13 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 						};
 
 						if !success {
-							logger::error(
-								if let Some(Value::String(error_msg)) = args.remove("error") {
-									&error_msg
-								} else {
-									"Could not find error key in false success response. Malformed object"
-								},
-							);
+							logger::error(&if let Some(Value::String(error_msg)) =
+								args.remove("error")
+							{
+								error_msg
+							} else {
+								String::from("Could not find error key in false success response. Malformed object")
+							});
 							continue;
 						}
 						let should_restart = if let Some(Value::Bool(should_restart)) =
@@ -207,14 +208,14 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 									.call_function(
 										&format!("{}.onProcessRunning", constants::APP_NAME),
 										{
-											let map = HashMap::new();
+											let mut map = HashMap::new();
 											map.insert(
 												String::from("node"),
 												Value::String(node_name.clone()),
 											);
 											map.insert(
 												String::from("moduleId"),
-												Value::Number(Number::PosInt(module_id)),
+												Value::Number(Number::PosInt(*module_id)),
 											);
 											map.insert(
 												String::from("lastSpawnedAt"),
@@ -235,7 +236,7 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 								}
 								let response = response.unwrap();
 
-								let args = if let Value::Object(args) = response {
+								let mut args = if let Value::Object(args) = response {
 									args
 								} else {
 									logger::error("Response is not an object. Malformed response");
@@ -252,14 +253,13 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 									};
 
 								if !success {
-									logger::error(
-										if let Some(Value::String(error_msg)) = args.remove("error")
-										{
-											&error_msg
-										} else {
-											"Could not find error key in false success response. Malformed object"
-										},
-									);
+									logger::error(&if let Some(Value::String(error_msg)) =
+										args.remove("error")
+									{
+										error_msg
+									} else {
+										String::from("Could not find error key in false success response. Malformed object")
+									});
 									continue;
 								}
 								process.has_been_crashing = false;
@@ -285,8 +285,9 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 					} => {
 						if !ids_to_processes.contains_key(&module_id) {
 							response.send(Err(String::from("Could not find any process with that moduleId in this runner. Is this stale data?"))).unwrap();
+							continue;
 						}
-						ids_to_processes.get_mut(&module_id).unwrap().respawn();
+						ids_to_processes.get_mut(&module_id).unwrap().respawn().await;
 						response.send(Ok(())).unwrap();
 					}
 					msg => panic!("Unhandled guillotine message: {:#?}", msg),
@@ -310,7 +311,7 @@ async fn try_connecting_to_host(node: &NodeConfig) -> bool {
 		}
 		return true;
 	} else if node.connection_type == constants::connection_type::UNIX_SOCKET {
-		let unix_socket = node.socket_path.unwrap();
+		let unix_socket = node.socket_path.clone().unwrap();
 		let mut connection = connect_to_unix_socket(&unix_socket).await;
 		if connection.is_err() {
 			// If connection failed, wait and try again

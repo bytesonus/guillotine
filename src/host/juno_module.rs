@@ -1,10 +1,6 @@
 use crate::{
 	models::{
-		GuillotineMessage,
-		GuillotineNode,
-		HostConfig,
-		ModuleRunnerConfig,
-		ModuleRunningStatus,
+		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
 		ProcessData,
 	},
 	utils::constants,
@@ -122,7 +118,8 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 				node_name: name,
 				response: sender,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		let response = receiver.await.unwrap();
 		if response.is_ok() {
@@ -157,7 +154,7 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 			return generate_error_response("Working dir is not a string");
 		};
 
-		let mut config = if let Some(Value::Object(config)) = args.remove("config") {
+		let config = if let Some(Value::Object(mut config)) = args.remove("config") {
 			ModuleRunnerConfig {
 				name: if let Some(Value::String(value)) = config.remove("name") {
 					value
@@ -264,7 +261,8 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 				),
 				response: sender,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		let response = receiver.await.unwrap();
 		if let Ok(module_id) = response {
@@ -320,7 +318,8 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 				crash,
 				response: sender,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		let (should_restart, wait_duration_millis) = receiver.await.unwrap();
 		Value::Object({
@@ -376,7 +375,8 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 				module_id,
 				last_spawned_at,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		Value::Object({
 			let mut map = HashMap::new();
@@ -386,9 +386,9 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 	})
 }
 
-fn module_deactivated(mut data: Value) {
+fn module_deactivated(data: Value) {
 	task::block_on(async {
-		let args = if let Value::Object(args) = data {
+		let mut args = if let Value::Object(args) = data {
 			args
 		} else {
 			return;
@@ -415,11 +415,12 @@ fn module_deactivated(mut data: Value) {
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::NodeDisconnected { node_name })
-			.await;
+			.await
+			.unwrap();
 	});
 }
 
-fn list_modules(mut args: HashMap<String, Value>) -> Value {
+fn list_modules(_: HashMap<String, Value>) -> Value {
 	task::block_on(async {
 		let (sender, receiver) = channel::<Result<Vec<String>, String>>();
 		MESSAGE_SENDER
@@ -429,7 +430,8 @@ fn list_modules(mut args: HashMap<String, Value>) -> Value {
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::ListModules { response: sender })
-			.await;
+			.await
+			.unwrap();
 
 		let result = receiver.await.unwrap();
 		if let Ok(modules) = result {
@@ -453,7 +455,7 @@ fn list_modules(mut args: HashMap<String, Value>) -> Value {
 	})
 }
 
-fn list_nodes(mut args: HashMap<String, Value>) -> Value {
+fn list_nodes(_: HashMap<String, Value>) -> Value {
 	task::block_on(async {
 		let (sender, receiver) = channel::<Vec<GuillotineNode>>();
 		MESSAGE_SENDER
@@ -463,7 +465,8 @@ fn list_nodes(mut args: HashMap<String, Value>) -> Value {
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::ListNodes { response: sender })
-			.await;
+			.await
+			.unwrap();
 
 		let nodes = receiver.await.unwrap();
 		Value::Object({
@@ -494,7 +497,7 @@ fn list_nodes(mut args: HashMap<String, Value>) -> Value {
 	})
 }
 
-fn list_all_processes(mut args: HashMap<String, Value>) -> Value {
+fn list_all_processes(_: HashMap<String, Value>) -> Value {
 	task::block_on(async {
 		let (sender, receiver) = channel::<Vec<(String, ProcessData)>>();
 		MESSAGE_SENDER
@@ -504,7 +507,8 @@ fn list_all_processes(mut args: HashMap<String, Value>) -> Value {
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::ListAllProcesses { response: sender })
-			.await;
+			.await
+			.unwrap();
 
 		let processes = receiver.await.unwrap();
 		Value::Object({
@@ -516,34 +520,42 @@ fn list_all_processes(mut args: HashMap<String, Value>) -> Value {
 					processes
 						.into_iter()
 						.map(|(node, process)| {
+							let uptime = process.get_uptime();
+
+							let ProcessData {
+								module_id,
+								config,
+								log_dir,
+								working_dir,
+								status,
+								restarts,
+								crashes,
+								created_at,
+								..
+							} = process;
+
 							Value::Object({
 								let mut map = HashMap::new();
 
 								map.insert(
 									String::from("id"),
-									Value::Number(Number::PosInt(process.module_id)),
+									Value::Number(Number::PosInt(module_id)),
 								);
-								map.insert(
-									String::from("name"),
-									Value::String(process.config.name),
-								);
+								map.insert(String::from("name"), Value::String(config.name));
 
 								map.insert(
 									String::from("logDir"),
-									if let Some(log_dir) = process.log_dir {
+									if let Some(log_dir) = log_dir {
 										Value::String(log_dir)
 									} else {
 										Value::Null
 									},
 								);
-								map.insert(
-									String::from("workingDir"),
-									Value::String(process.working_dir),
-								);
+								map.insert(String::from("workingDir"), Value::String(working_dir));
 
 								map.insert(
 									String::from("status"),
-									Value::String(String::from(match process.status {
+									Value::String(String::from(match status {
 										ModuleRunningStatus::Running => "running",
 										ModuleRunningStatus::Stopped => "stopped",
 										ModuleRunningStatus::Offline => "offline",
@@ -552,19 +564,19 @@ fn list_all_processes(mut args: HashMap<String, Value>) -> Value {
 								map.insert(String::from("node"), Value::String(node));
 								map.insert(
 									String::from("restarts"),
-									Value::Number(Number::NegInt(process.restarts)),
+									Value::Number(Number::NegInt(restarts)),
 								);
 								map.insert(
 									String::from("uptime"),
-									Value::Number(Number::PosInt(process.get_uptime())),
+									Value::Number(Number::PosInt(uptime)),
 								);
 								map.insert(
 									String::from("crashes"),
-									Value::Number(Number::PosInt(process.crashes)),
+									Value::Number(Number::PosInt(crashes)),
 								);
 								map.insert(
 									String::from("createdAt"),
-									Value::Number(Number::PosInt(process.created_at)),
+									Value::Number(Number::PosInt(created_at)),
 								);
 
 								map
@@ -597,7 +609,8 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 				node_name: node_name.clone(),
 				response: sender,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		let result = receiver.await.unwrap();
 		if let Ok(processes) = result {
@@ -610,21 +623,35 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 						processes
 							.into_iter()
 							.map(|process| {
+								let uptime = process.get_uptime();
+
+								let ProcessData {
+									module_id,
+									config,
+									log_dir,
+									working_dir,
+									status,
+									restarts,
+									crashes,
+									created_at,
+									..
+								} = process;
+
 								Value::Object({
 									let mut map = HashMap::new();
 
 									map.insert(
 										String::from("id"),
-										Value::Number(Number::PosInt(process.module_id)),
+										Value::Number(Number::PosInt(module_id)),
 									);
 									map.insert(
 										String::from("name"),
-										Value::String(process.config.name),
+										Value::String(config.name.clone()),
 									);
 
 									map.insert(
 										String::from("logDir"),
-										if let Some(log_dir) = process.log_dir {
+										if let Some(log_dir) = log_dir {
 											Value::String(log_dir)
 										} else {
 											Value::Null
@@ -632,12 +659,12 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 									);
 									map.insert(
 										String::from("workingDir"),
-										Value::String(process.working_dir),
+										Value::String(working_dir),
 									);
 
 									map.insert(
 										String::from("status"),
-										Value::String(String::from(match process.status {
+										Value::String(String::from(match status {
 											ModuleRunningStatus::Running => "running",
 											ModuleRunningStatus::Stopped => "stopped",
 											ModuleRunningStatus::Offline => "offline",
@@ -649,19 +676,19 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 									);
 									map.insert(
 										String::from("restarts"),
-										Value::Number(Number::NegInt(process.restarts)),
+										Value::Number(Number::NegInt(restarts)),
 									);
 									map.insert(
 										String::from("uptime"),
-										Value::Number(Number::PosInt(process.get_uptime())),
+										Value::Number(Number::PosInt(uptime)),
 									);
 									map.insert(
 										String::from("crashes"),
-										Value::Number(Number::PosInt(process.crashes)),
+										Value::Number(Number::PosInt(crashes)),
 									);
 									map.insert(
 										String::from("createdAt"),
-										Value::Number(Number::PosInt(process.created_at)),
+										Value::Number(Number::PosInt(created_at)),
 									);
 
 									map
@@ -701,7 +728,8 @@ fn restart_process(mut args: HashMap<String, Value>) -> Value {
 				module_id,
 				response: sender,
 			})
-			.await;
+			.await
+			.unwrap();
 
 		let result = receiver.await.unwrap();
 		if result.is_ok() {
@@ -721,12 +749,10 @@ fn generate_error_response(error_message: &str) -> Value {
 		let mut map = HashMap::new();
 
 		map.insert(String::from("success"), Value::Bool(false));
-		if error_message.is_some() {
-			map.insert(
-				String::from("error"),
-				Value::String(String::from(error_message.unwrap())),
-			);
-		}
+		map.insert(
+			String::from("error"),
+			Value::String(String::from(error_message)),
+		);
 
 		map
 	})

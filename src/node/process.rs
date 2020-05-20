@@ -36,19 +36,20 @@ impl Process {
 	// returns (is_running, is_crashed)
 	pub fn is_process_running(&mut self) -> (bool, bool) {
 		if self.process.is_none() {
-			return false;
+			return (false, false);
 		}
 
 		let process = self.process.as_mut().unwrap();
 		match process.try_wait() {
 			Ok(Some(status)) => {
-				if !status.success() {
+				if status.success() {
+					(false, false)
+				} else {
 					(false, true)
 				}
-				(false, false)
 			} // Process has already exited
 			Ok(None) => (true, false),
-			Err(error) => (false, true),
+			Err(_) => (false, true),
 		}
 	}
 
@@ -56,11 +57,11 @@ impl Process {
 		// TODO
 	}
 
-	pub async fn send_quit_signal(&mut self) {
+	pub fn send_quit_signal(&mut self) {
 		// TODO
 	}
 
-	pub async fn kill(&mut self) {
+	pub fn kill(&mut self) {
 		// TODO
 	}
 }

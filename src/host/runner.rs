@@ -4,7 +4,8 @@ use crate::{
 		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
 		RunnerConfig,
 	},
-	utils::{constants, logger}, node::Process,
+	node::Process,
+	utils::{constants, logger},
 };
 use std::{
 	collections::HashMap,
@@ -34,7 +35,7 @@ pub async fn run(mut config: RunnerConfig) {
 		let socket_path = host.socket_path.clone().unwrap();
 		Process::new(
 			ModuleRunnerConfig::juno_default(
-				host.path,
+				host.path.clone(),
 				vec![String::from("--socket-location"), socket_path],
 			),
 			match &config.logs {
@@ -104,7 +105,7 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 	let mut pid = 1;
 
 	// Initialize the guillotine juno module
-	let (mut sender, mut command_receiver) = unbounded::<GuillotineMessage>();
+	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
 	let mut juno_module = juno_module::setup_host_module(&juno_config, sender.clone()).await;
 
 	let mut timer_future = Delay::new(Duration::from_millis(100));
@@ -175,7 +176,7 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 						}
 
 						// Find a runner which runs a module of the same name
-						let runner = node_runners.values().find(|runner| {
+						let runner = node_runners.values_mut().find(|runner| {
 							runner
 								.get_process_by_name(&process_data.config.name)
 								.is_some()
@@ -198,7 +199,7 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 
 							// There's a stale module re-registering itself.
 							process_data.module_id = process.unwrap().module_id;
-							runner.register_process(process_data);
+							runner.register_process(process_data.clone());
 
 							response.send(Ok(process_data.module_id)).unwrap();
 							continue;
@@ -234,12 +235,12 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 						}
 						let runner = runner.unwrap();
 
-						let process = runner.get_process_by_id(module_id);
+						let process = runner.get_process_by_id_mut(module_id);
 						if process.is_none() {
 							response.send((false, 0)).unwrap();
 							continue;
 						}
-						let process = process.as_mut().unwrap();
+						let process = process.unwrap();
 
 						process.restarts += 1;
 						if crash {
@@ -274,11 +275,11 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 						}
 						let runner = runner.unwrap();
 
-						let process = runner.get_process_by_id(module_id);
+						let process = runner.get_process_by_id_mut(module_id);
 						if process.is_none() {
 							continue;
 						}
-						let process = process.as_mut().unwrap();
+						let process = process.unwrap();
 
 						process.consequtive_crashes = 0;
 						process.last_started_at = last_spawned_at;
@@ -300,16 +301,19 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 							.call_function("juno.listModules", HashMap::new())
 							.await;
 						if result.is_err() {
-							response.send(Err(format!(
-								"Error listing modules from Juno: {}",
-								result.unwrap_err()
-							)));
+							response
+								.send(Err(format!(
+									"Error listing modules from Juno: {}",
+									result.unwrap_err()
+								)))
+								.unwrap();
 							continue;
 						}
 						let modules = result.unwrap();
 						if !modules.is_array() {
 							response
-								.send(Err(format!("Expected array response. Got {:?}", modules)));
+								.send(Err(format!("Expected array response. Got {:?}", modules)))
+								.unwrap();
 							return;
 						}
 						let modules = modules
@@ -326,7 +330,7 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 							.unwrap();
 					}
 					GuillotineMessage::ListAllProcesses { response } => {
-						let result = vec![];
+						let mut result = vec![];
 						node_runners.iter().for_each(|(name, node)| {
 							node.processes
 								.iter()
@@ -404,13 +408,14 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 								.unwrap();
 							continue;
 						}
-						let result = if let Value::Object(args) = result.unwrap() {
+						let result = result.unwrap();
+						let mut result = if let Value::Object(args) = result {
 							args
 						} else {
 							response
 								.send(Err(format!(
 									"Response of restart command wasn't an object. Got: {:#?}",
-									result.unwrap()
+									result
 								)))
 								.unwrap();
 							continue;
@@ -452,7 +457,10 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 
 	// TODO: Tell all nodes to quit their processes first
 
-	logger::info(&format!("Quitting process: {}", juno_process.runner_config.name));
+	logger::info(&format!(
+		"Quitting process: {}",
+		juno_process.runner_config.name
+	));
 	juno_process.send_quit_signal();
 	let quit_time = get_current_millis();
 	loop {
@@ -466,7 +474,10 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 		// If the processes is running, check if it's been given enough time.
 		if get_current_millis() > quit_time + 1000 {
 			// It's been trying to quit for more than 1 second. Kill it and quit
-			logger::info(&format!("Killing process: {}", juno_process.runner_config.name));
+			logger::info(&format!(
+				"Killing process: {}",
+				juno_process.runner_config.name
+			));
 			juno_process.kill();
 			break;
 		}
@@ -487,12 +498,12 @@ async fn try_connecting_to_juno(host: &HostConfig) -> bool {
 		}
 		return true;
 	} else if host.connection_type == constants::connection_type::UNIX_SOCKET {
-		let unix_socket = host.socket_path.unwrap();
-		let mut connection = connect_to_unix_socket(&unix_socket).await;
+		let unix_socket = host.socket_path.as_ref().unwrap();
+		let mut connection = connect_to_unix_socket(unix_socket).await;
 		if connection.is_err() {
 			// If connection failed, wait and try again
 			Delay::new(Duration::from_millis(1000)).await;
-			connection = connect_to_unix_socket(&unix_socket).await;
+			connection = connect_to_unix_socket(unix_socket).await;
 			return connection.is_ok();
 		}
 		return true;
@@ -515,5 +526,5 @@ fn get_current_millis() -> u64 {
 	SystemTime::now()
 		.duration_since(UNIX_EPOCH)
 		.expect("Time went backwards. Wtf?")
-		.as_millis()
+		.as_millis() as u64
 }

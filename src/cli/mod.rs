@@ -15,7 +15,7 @@ use juno::JunoModule;
 pub async fn on_exit() {}
 
 fn get_juno_module_from_config(config: &RunnerConfig) -> Result<JunoModule, &str> {
-	if let Some(host) = config.host {
+	if let Some(host) = &config.host {
 		if host.connection_type == "unix_socket" {
 			let socket_path = host.socket_path.as_ref().unwrap();
 			Ok(JunoModule::from_unix_socket(socket_path))
@@ -24,7 +24,7 @@ fn get_juno_module_from_config(config: &RunnerConfig) -> Result<JunoModule, &str
 			let bind_addr = host.bind_addr.as_ref().unwrap();
 			Ok(JunoModule::from_inet_socket(&bind_addr, *port))
 		}
-	} else if let Some(node) = config.node {
+	} else if let Some(node) = &config.node {
 		if node.connection_type == "unix_socket" {
 			let socket_path = node.socket_path.as_ref().unwrap();
 			Ok(JunoModule::from_unix_socket(socket_path))

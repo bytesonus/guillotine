@@ -6,7 +6,7 @@ use crate::{
 use async_std::{fs, path::Path};
 use futures::future::join;
 
-pub async fn run(config: RunnerConfig) {
+pub async fn run(mut config: RunnerConfig) {
 	if config.logs.is_some() {
 		let log_dir = config.logs.as_ref().unwrap();
 		let main_dir = Path::new(log_dir);
@@ -28,7 +28,7 @@ pub async fn run(config: RunnerConfig) {
 			socket_path: host.socket_path.clone(),
 		});
 
-		join(host::run(config), node::run(config)).await;
+		join(host::run(config.clone()), node::run(config)).await;
 	} else if config.node.is_some() {
 		node::run(config).await;
 	} else {
