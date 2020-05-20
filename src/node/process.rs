@@ -1,8 +1,11 @@
-use crate::models::ModuleRunnerConfig;
+use crate::{models::ModuleRunnerConfig, utils::logger};
 use std::{
-	process::Child,
-	time::{SystemTime, UNIX_EPOCH},
+	fs::OpenOptions,
+	process::{Child, Command, Stdio},
+	time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use async_std::{path::Path, task};
 
 pub struct Process {
 	pub process: Option<Child>,
@@ -54,15 +57,169 @@ impl Process {
 	}
 
 	pub async fn respawn(&mut self) {
-		// TODO
+		logger::info(&format!("Respawning '{}'", self.runner_config.name));
+		if self.process.is_some() && self.is_process_running().0 {
+			self.send_quit_signal();
+			let quit_time = get_current_time();
+			loop {
+				// Give the process some time to die.
+				task::sleep(Duration::from_millis(100)).await;
+				// If the process is not running, then break
+				if !self.is_process_running().0 {
+					break;
+				}
+				// If the processes is running, check if it's been given enough time.
+				if get_current_time() > quit_time + 1000 {
+					// It's been trying to quit for more than 1 second. Kill it and quit
+					logger::info(&format!("Killing process: {}", self.runner_config.name));
+					self.process.as_mut().unwrap().kill().unwrap_or(());
+					break;
+				}
+			}
+		}
+
+		let child = if self.runner_config.interpreter.is_none() {
+			let mut command = Command::new(&self.runner_config.command);
+			command
+				.current_dir(&self.working_dir)
+				.args(self.runner_config.args.as_ref().unwrap_or(&vec![]))
+				.envs(self.runner_config.envs.as_ref().unwrap_or(&vec![]).clone());
+
+			if self.log_dir.is_some() {
+				let log_dir = self.log_dir.as_ref().unwrap();
+
+				let output_location = Path::new(log_dir).join("output.log");
+				let error_location = Path::new(log_dir).join("error.log");
+
+				let output = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(output_location);
+				let error = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(error_location);
+
+				if output.is_ok() && error.is_ok() {
+					command
+						.stdin(Stdio::null())
+						.stdout(Stdio::from(output.unwrap()))
+						.stderr(Stdio::from(error.unwrap()));
+				} else {
+					command
+						.stdin(Stdio::null())
+						.stdout(Stdio::null())
+						.stderr(Stdio::null());
+				}
+			}
+
+			command.spawn()
+		} else {
+			let mut command = Command::new(self.runner_config.interpreter.as_ref().unwrap());
+			command
+				.current_dir(&self.working_dir)
+				.arg(&self.runner_config.command)
+				.args(self.runner_config.args.as_ref().unwrap_or(&vec![]))
+				.envs(self.runner_config.envs.as_ref().unwrap_or(&vec![]).clone());
+
+			if self.log_dir.is_some() {
+				let log_dir = self.log_dir.as_ref().unwrap();
+
+				let output_location = Path::new(log_dir).join("output.log");
+				let error_location = Path::new(log_dir).join("error.log");
+
+				let output = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(output_location);
+				let error = OpenOptions::new()
+					.create(true)
+					.append(true)
+					.open(error_location);
+
+				if output.is_ok() && error.is_ok() {
+					command
+						.stdin(Stdio::null())
+						.stdout(Stdio::from(output.unwrap()))
+						.stderr(Stdio::from(error.unwrap()));
+				} else {
+					command
+						.stdin(Stdio::null())
+						.stdout(Stdio::null())
+						.stderr(Stdio::null());
+				}
+			}
+
+			command.spawn()
+		};
+		if let Err(err) = child {
+			logger::error(&format!(
+				"Error spawing child process '{}': {}",
+				self.runner_config.name, err
+			));
+			return;
+		}
+		self.process = Some(child.unwrap());
+		self.last_started_at = get_current_time();
 	}
 
+	#[cfg(target_family = "unix")]
 	pub fn send_quit_signal(&mut self) {
-		// TODO
+		if self.process.is_none() {
+			return;
+		}
+		// Send SIGINT to a process in unix
+		use nix::{
+			sys::signal::{self, Signal},
+			unistd::Pid,
+		};
+
+		// send SIGINT to the child
+		let result = signal::kill(
+			Pid::from_raw(self.process.as_ref().unwrap().id() as i32),
+			Signal::SIGINT,
+		);
+		if result.is_err() {
+			logger::error(&format!(
+				"Error sending SIGINT to child process '{}': {}",
+				self.runner_config.name,
+				result.unwrap_err()
+			));
+		}
+	}
+
+	#[cfg(target_family = "windows")]
+	pub fn send_quit_signal(&mut self) {
+		if self.process.is_none() {
+			return;
+		}
+		// Send ctrl-c event to a process in windows
+		// Ref: https://blog.codetitans.pl/post/sending-ctrl-c-signal-to-another-application-on-windows/
+		use winapi::um::{
+			consoleapi::SetConsoleCtrlHandler,
+			wincon::{AttachConsole, FreeConsole, GenerateConsoleCtrlEvent},
+		};
+
+		let pid = self.process.as_ref().unwrap().id();
+		const CTRL_C_EVENT: u32 = 0;
+
+		unsafe {
+			FreeConsole();
+			if AttachConsole(pid) > 0 {
+				SetConsoleCtrlHandler(None, 1);
+				GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+			}
+		}
 	}
 
 	pub fn kill(&mut self) {
-		// TODO
+		if self.process.is_none() {
+			return;
+		}
+		let result = self.process.as_mut().unwrap().kill();
+		if result.is_err() {
+			logger::error(&format!("Error killing process: {}", result.unwrap_err()));
+		}
 	}
 }
 
