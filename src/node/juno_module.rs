@@ -37,7 +37,14 @@ pub async fn setup_module(
 		.initialize(
 			&format!("{}-node-{}", constants::APP_NAME, node_name),
 			constants::APP_VERSION,
-			HashMap::new(),
+			{
+				let mut map = HashMap::new();
+				map.insert(
+					String::from(constants::APP_NAME),
+					String::from(constants::APP_VERSION),
+				);
+				map
+			},
 		)
 		.await
 		.unwrap();

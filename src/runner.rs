@@ -2,9 +2,11 @@ use crate::{
 	host,
 	models::{NodeConfig, RunnerConfig},
 	node,
+	utils::logger,
 };
+
 use async_std::{fs, path::Path};
-use futures::future::join;
+use futures::{channel::oneshot::channel, future};
 
 pub async fn run(mut config: RunnerConfig) {
 	if config.logs.is_some() {
@@ -28,12 +30,20 @@ pub async fn run(mut config: RunnerConfig) {
 			socket_path: host.socket_path.clone(),
 		});
 
-		join(host::run(config.clone()), node::run(config)).await;
+		let (sender, receiver) = channel::<Result<(), String>>();
+		future::join(host::run(config.clone(), sender), async {
+			if let Err(msg) = receiver.await.unwrap() {
+				logger::error(&msg);
+				return;
+			}
+			node::run(config).await;
+		})
+		.await;
 	} else if config.node.is_some() {
 		node::run(config).await;
 	}
 }
 
 pub async fn on_exit() {
-	futures::join!(host::on_exit(), node::on_exit());
+	future::join(host::on_exit(), node::on_exit()).await;
 }

@@ -15,7 +15,10 @@ use std::{
 
 use async_std::{fs, net::TcpStream, path::Path, sync::Mutex, task};
 use future::Either;
-use futures::{channel::mpsc::unbounded, future, StreamExt};
+use futures::{
+	channel::{mpsc::unbounded, oneshot::Sender},
+	future, StreamExt,
+};
 use futures_timer::Delay;
 use juno::models::{Number, Value};
 
@@ -23,7 +26,7 @@ lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
 }
 
-pub async fn run(mut config: RunnerConfig) {
+pub async fn run(mut config: RunnerConfig, initialized_sender: Sender<Result<(), String>>) {
 	let host = config.host.take().unwrap();
 
 	if try_connecting_to_juno(&host).await {
@@ -36,7 +39,11 @@ pub async fn run(mut config: RunnerConfig) {
 		Process::new(
 			ModuleRunnerConfig::juno_default(
 				host.path.clone(),
-				vec![String::from("--socket-location"), socket_path],
+				vec![
+					String::from("--socket-location"),
+					socket_path,
+					String::from("-VVV"),
+				],
 			),
 			match &config.logs {
 				Some(log_dir) => {
@@ -87,16 +94,27 @@ pub async fn run(mut config: RunnerConfig) {
 		)
 	};
 
-	keep_host_alive(juno_process, host).await;
+	keep_host_alive(juno_process, host, initialized_sender).await;
 }
 
 pub async fn on_exit() {
 	*CLOSE_FLAG.lock().await = true;
 }
 
-async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
+async fn keep_host_alive(
+	mut juno_process: Process,
+	juno_config: HostConfig,
+	initialized_sender: Sender<Result<(), String>>,
+) {
 	// Spawn juno before spawing any modules
 	while !juno_process.is_process_running().0 {
+		if *CLOSE_FLAG.lock().await {
+			logger::info("Exit command received. Exiting");
+			initialized_sender
+				.send(Err(String::from("Exiting")))
+				.unwrap();
+			return;
+		}
 		juno_process.respawn().await;
 		try_connecting_to_juno(&juno_config).await;
 	}
@@ -108,13 +126,18 @@ async fn keep_host_alive(mut juno_process: Process, juno_config: HostConfig) {
 	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
 	let mut juno_module = juno_module::setup_host_module(&juno_config, sender.clone()).await;
 
+	logger::info("Host initialized. Waiting for nodes to connect");
+	initialized_sender.send(Ok(())).unwrap();
+
 	let mut timer_future = Delay::new(Duration::from_millis(100));
 	let mut command_future = command_receiver.next();
 	loop {
 		let selection = future::select(timer_future, command_future).await;
+
 		match selection {
 			Either::Left((_, next_command_future)) => {
 				if *CLOSE_FLAG.lock().await {
+					logger::info("Exit command received. Exiting");
 					break;
 				}
 

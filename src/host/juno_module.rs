@@ -26,8 +26,6 @@ pub async fn setup_host_module(
 	config: &HostConfig,
 	sender: UnboundedSender<GuillotineMessage>,
 ) -> JunoModule {
-	MESSAGE_SENDER.write().await.replace(sender);
-
 	let mut module = if config.connection_type == "unix_socket" {
 		let socket_path = config.socket_path.as_ref().unwrap();
 		JunoModule::from_unix_socket(&socket_path)
@@ -92,12 +90,20 @@ pub async fn setup_host_module(
 		.register_hook("juno.moduleDeactivated", module_deactivated)
 		.await
 		.unwrap();
+	
+	MESSAGE_SENDER.write().await.replace(sender);
 
 	module
 }
 
 fn register_node(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let name = if let Some(Value::String(value)) = args.remove("name") {
 			value
 		} else {
@@ -105,9 +111,7 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 		};
 
 		let (sender, receiver) = channel::<Result<(), String>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
@@ -117,6 +121,7 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 			})
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let response = receiver.await.unwrap();
 		if let Ok(()) = response {
@@ -133,6 +138,12 @@ fn register_node(mut args: HashMap<String, Value>) -> Value {
 
 fn register_process(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
@@ -240,9 +251,7 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 		};
 
 		let (sender, receiver) = channel::<Result<u64, String>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
@@ -260,6 +269,7 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 			})
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let response = receiver.await.unwrap();
 		if let Ok(module_id) = response {
@@ -280,6 +290,12 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 
 fn process_exited(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
@@ -303,9 +319,7 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 		};
 
 		let (sender, receiver) = channel::<(bool, u64)>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
@@ -317,6 +331,7 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 			})
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let (should_restart, wait_duration_millis) = receiver.await.unwrap();
 		Value::Object({
@@ -334,6 +349,12 @@ fn process_exited(mut args: HashMap<String, Value>) -> Value {
 
 fn process_running(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
@@ -361,9 +382,7 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 				return generate_error_response("Module ID is not a number");
 			};
 
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
@@ -374,6 +393,7 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 			})
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		Value::Object({
 			let mut map = HashMap::new();
@@ -385,6 +405,12 @@ fn process_running(mut args: HashMap<String, Value>) -> Value {
 
 fn module_deactivated(data: Value) {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return;
+		}
+
 		let mut args = if let Value::Object(args) = data {
 			args
 		} else {
@@ -405,30 +431,34 @@ fn module_deactivated(data: Value) {
 			.skip(constants::APP_NAME.len() + "-node-".len())
 			.collect();
 
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::NodeDisconnected { node_name })
 			.await
 			.unwrap();
+		drop(message_sender);
 	});
 }
 
 fn list_modules(_: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let (sender, receiver) = channel::<Result<Vec<String>, String>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::ListModules { response: sender })
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let result = receiver.await.unwrap();
 		if let Ok(modules) = result {
@@ -449,16 +479,21 @@ fn list_modules(_: HashMap<String, Value>) -> Value {
 
 fn list_nodes(_: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let (sender, receiver) = channel::<Vec<GuillotineNode>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::ListNodes { response: sender })
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let nodes = receiver.await.unwrap();
 		Value::Object({
@@ -491,16 +526,21 @@ fn list_nodes(_: HashMap<String, Value>) -> Value {
 
 fn list_all_processes(_: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let (sender, receiver) = channel::<Vec<(String, ProcessData)>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::ListAllProcesses { response: sender })
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let processes = receiver.await.unwrap();
 		Value::Object({
@@ -584,6 +624,12 @@ fn list_all_processes(_: HashMap<String, Value>) -> Value {
 
 fn list_processes(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let node_name = if let Some(Value::String(value)) = args.remove("node") {
 			value
 		} else {
@@ -591,9 +637,7 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 		};
 
 		let (sender, receiver) = channel::<Result<Vec<ProcessData>, String>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
@@ -603,6 +647,7 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 			})
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let result = receiver.await.unwrap();
 		if let Ok(processes) = result {
@@ -696,6 +741,12 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 
 fn restart_process(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
 		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
 			match module_id {
 				Number::PosInt(module_id) => module_id,
@@ -707,9 +758,7 @@ fn restart_process(mut args: HashMap<String, Value>) -> Value {
 		};
 
 		let (sender, receiver) = channel::<Result<(), String>>();
-		MESSAGE_SENDER
-			.read()
-			.await
+		message_sender
 			.as_ref()
 			.unwrap()
 			.clone()
@@ -719,6 +768,7 @@ fn restart_process(mut args: HashMap<String, Value>) -> Value {
 			})
 			.await
 			.unwrap();
+		drop(message_sender);
 
 		let result = receiver.await.unwrap();
 		if let Ok(()) = result {

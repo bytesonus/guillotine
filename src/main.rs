@@ -121,6 +121,6 @@ async fn main() {
 }
 
 async fn on_exit() {
-	logger::info("Recieved exit code. Closing all modules");
+	logger::info("Received exit code. Closing all modules");
 	future::join(runner::on_exit(), cli::on_exit()).await;
 }

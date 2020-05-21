@@ -22,7 +22,7 @@ pub struct ConfigTarget {
 }
 
 // Config specific to this environment
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct RunnerConfig {
 	pub name: Option<String>,
 	pub logs: Option<String>,
@@ -31,7 +31,7 @@ pub struct RunnerConfig {
 	pub modules: Option<ModuleConfig>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct HostConfig {
 	pub path: String,
 	pub connection_type: String,
@@ -40,7 +40,7 @@ pub struct HostConfig {
 	pub socket_path: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct NodeConfig {
 	pub connection_type: String,
 	pub port: Option<u16>,

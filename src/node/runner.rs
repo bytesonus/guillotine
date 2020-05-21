@@ -3,17 +3,17 @@ use crate::{
 	node::{juno_module, module::get_module_from_path, process::Process},
 	utils::{constants, logger},
 };
-
-use async_std::{fs, net::TcpStream, path::Path, sync::Mutex};
-use future::Either;
-use futures::{channel::mpsc::unbounded, future, StreamExt};
-use futures_timer::Delay;
-use juno::models::{Number, Value};
 use std::{
 	collections::HashMap,
 	io::Error,
 	time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use async_std::{fs, net::TcpStream, path::Path, sync::Mutex, task};
+use future::Either;
+use futures::{channel::mpsc::unbounded, future, StreamExt};
+use futures_timer::Delay;
+use juno::models::{Number, Value};
 
 lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
@@ -29,12 +29,16 @@ pub async fn run(mut config: RunnerConfig) {
 	let node = config.node.take().unwrap();
 	let log_dir = config.logs;
 
-	if !try_connecting_to_host(&node).await {
+	while !try_connecting_to_host(&node).await {
 		logger::error(&format!(
-			"Could not connect to the host instance of {}. Please check your settings",
-			constants::APP_NAME
+			"Could not connect to the host instance of {}. Will try again in {} ms",
+			constants::APP_NAME,
+			1000
 		));
-		return;
+		task::sleep(Duration::from_millis(1000)).await;
+		if *CLOSE_FLAG.lock().await {
+			return;
+		}
 	}
 
 	// Populate any auto-start modules here

@@ -31,7 +31,7 @@ pub async fn list_processes(config: RunnerConfig) {
 		.unwrap();
 	let processes = module
 		.call_function(
-			&format!("{}.listProcesses", constants::APP_NAME),
+			&format!("{}.listAllProcesses", constants::APP_NAME),
 			HashMap::new(),
 		)
 		.await
