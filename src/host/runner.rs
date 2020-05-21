@@ -26,11 +26,12 @@ lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
 }
 
-pub async fn run(mut config: RunnerConfig, initialized_sender: Sender<Result<(), String>>) {
+pub async fn run(mut config: RunnerConfig, initialized_sender: Sender<Option<()>>) {
 	let host = config.host.take().unwrap();
 
 	if try_connecting_to_juno(&host).await {
 		logger::error("An instance of Juno with the same configuration already seems to be running. Duplicate instances are not allowed!");
+		initialized_sender.send(None).unwrap();
 		return;
 	}
 
@@ -104,15 +105,13 @@ pub async fn on_exit() {
 async fn keep_host_alive(
 	mut juno_process: Process,
 	juno_config: HostConfig,
-	initialized_sender: Sender<Result<(), String>>,
+	initialized_sender: Sender<Option<()>>,
 ) {
 	// Spawn juno before spawing any modules
 	while !juno_process.is_process_running().0 {
 		if *CLOSE_FLAG.lock().await {
 			logger::info("Exit command received. Exiting");
-			initialized_sender
-				.send(Err(String::from("Exiting")))
-				.unwrap();
+			initialized_sender.send(None).unwrap();
 			return;
 		}
 		juno_process.respawn().await;
@@ -127,7 +126,7 @@ async fn keep_host_alive(
 	let mut juno_module = juno_module::setup_host_module(&juno_config, sender.clone()).await;
 
 	logger::info("Host initialized. Waiting for nodes to connect");
-	initialized_sender.send(Ok(())).unwrap();
+	initialized_sender.send(Some(())).unwrap();
 
 	let mut timer_future = Delay::new(Duration::from_millis(100));
 	let mut command_future = command_receiver.next();
@@ -333,17 +332,23 @@ async fn keep_host_alive(
 							continue;
 						}
 						let modules = result.unwrap();
-						if !modules.is_array() {
+						let modules = if let Value::Array(modules) = modules {
+							modules
+						} else {
 							response
 								.send(Err(format!("Expected array response. Got {:?}", modules)))
 								.unwrap();
 							return;
-						}
+						};
 						let modules = modules
-							.as_array()
-							.unwrap()
-							.iter()
-							.map(|value| value.as_string().unwrap().clone())
+							.into_iter()
+							.filter_map(|value| {
+								if let Value::Object(map) = value {
+									Some(map)
+								} else {
+									None
+								}
+							})
 							.collect();
 						response.send(Ok(modules)).unwrap();
 					}

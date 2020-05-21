@@ -1,5 +1,7 @@
 use crate::models::{GuillotineNode, ProcessData};
 use futures::channel::oneshot::Sender;
+use juno::models::Value;
+use std::collections::HashMap;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -31,7 +33,7 @@ pub enum GuillotineMessage {
 
 	// Cli stuff
 	ListModules {
-		response: Sender<Result<Vec<String>, String>>,
+		response: Sender<Result<Vec<HashMap<String, Value>>, String>>,
 	},
 	ListNodes {
 		response: Sender<Vec<GuillotineNode>>,

@@ -1,6 +1,5 @@
 use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, utils::constants};
 
-use clap::ArgMatches;
 use cli_table::{
 	format::{
 		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
@@ -10,7 +9,7 @@ use cli_table::{
 use juno::models::Value;
 use std::collections::HashMap;
 
-pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
+pub async fn list_all_processes(config: RunnerConfig) {
 	let result = get_juno_module_from_config(&config);
 	let mut module = if let Ok(module) = result {
 		module
@@ -23,13 +22,6 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 		return;
 	};
 
-	let node = args.value_of("node");
-	if node.is_none() {
-		logger::error("No node supplied!");
-		return;
-	}
-	let node = node.unwrap();
-
 	module
 		.initialize(
 			&format!("{}-cli", constants::APP_NAME),
@@ -39,11 +31,10 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 		.await
 		.unwrap();
 	let response = module
-		.call_function(&format!("{}.listProcesses", constants::APP_NAME), {
-			let mut map = HashMap::new();
-			map.insert(String::from("node"), Value::String(String::from(node)));
-			map
-		})
+		.call_function(
+			&format!("{}.listAllProcesses", constants::APP_NAME),
+			HashMap::new(),
+		)
 		.await
 		.unwrap();
 	let processes = if let Value::Object(mut map) = response {
@@ -131,12 +122,6 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 				),
 				"offline" => Cell::new(
 					"offline",
-					CellFormat::builder()
-						.foreground_color(Some(Color::Blue))
-						.build(),
-				),
-				"stopped" => Cell::new(
-					"stopped",
 					CellFormat::builder()
 						.foreground_color(Some(Color::Red))
 						.build(),

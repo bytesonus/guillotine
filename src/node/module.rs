@@ -50,7 +50,8 @@ pub async fn get_module_from_path(path: &str, log_dir: Option<String>) -> Option
 		if !sub_dir.exists().await {
 			fs::create_dir(&sub_dir).await.unwrap();
 		}
-		Process::new(config, Some(log_dir), working_dir)
+		let log_sub_dir = sub_dir.to_str().unwrap().to_owned();
+		Process::new(config, Some(log_sub_dir), working_dir)
 	} else {
 		Process::new(config, None, working_dir)
 	})

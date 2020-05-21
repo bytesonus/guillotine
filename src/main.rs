@@ -45,19 +45,35 @@ async fn main() {
 			SubCommand::with_name("run").about("Run the application with a given config file"),
 		)
 		.subcommand(
-			SubCommand::with_name("list-processes")
-				.alias("lp")
-				.about("List the running processes and their statuses"),
-		)
-		.subcommand(
 			SubCommand::with_name("list-modules")
 				.alias("lm")
 				.about("List the modules connected and their statuses"),
 		)
 		.subcommand(
-			SubCommand::with_name("info")
-				.alias("i")
-				.about("Get information about a process / module")
+			SubCommand::with_name("list-nodes")
+				.alias("ln")
+				.about("List all the nodes registered with this host and their details"),
+		)
+		.subcommand(
+			SubCommand::with_name("list-all-processes")
+				.alias("lap")
+				.about("List all running processes and their states across all nodes"),
+		)
+		.subcommand(
+			SubCommand::with_name("list-processes")
+				.alias("lp")
+				.about("List the running processes and their statuses for a given node")
+				.arg(
+					Arg::with_name("node")
+						.short("n")
+						.long("node")
+						.takes_value(true)
+						.required(false),
+				),
+		)
+		.subcommand(
+			SubCommand::with_name("restart")
+				.about("Restarts a process with a processId")
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
@@ -66,8 +82,9 @@ async fn main() {
 				),
 		)
 		.subcommand(
-			SubCommand::with_name("restart")
-				.about("Restarts a process with a processId")
+			SubCommand::with_name("info")
+				.alias("i")
+				.about("Get information about a process / module")
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
@@ -111,11 +128,17 @@ async fn main() {
 	let config = config_result.unwrap();
 
 	match args.subcommand() {
-		("run", Some(_)) => runner::run(config).await,
-		("list-processes", Some(_)) => cli::list_processes(config).await,
+		// Host or node stuff
+		("run", Some(_)) | ("", _) => runner::run(config).await,
+
+		// Cli stuff
 		("list-modules", Some(_)) => cli::list_modules(config).await,
+		("list-nodes", Some(_)) => cli::list_nodes(config).await,
+		("list-all-processes", Some(_)) => cli::list_all_processes(config).await,
+		("list-processes", Some(args)) => cli::list_processes(config, args).await,
 		("info", Some(args)) => cli::get_module_info(config, args).await,
 		("restart", Some(args)) => cli::restart_process(config, args).await,
+
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}
 }

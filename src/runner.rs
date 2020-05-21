@@ -30,10 +30,15 @@ pub async fn run(mut config: RunnerConfig) {
 			socket_path: host.socket_path.clone(),
 		});
 
-		let (sender, receiver) = channel::<Result<(), String>>();
+		let (sender, receiver) = channel::<Option<()>>();
 		future::join(host::run(config.clone(), sender), async {
-			if let Err(msg) = receiver.await.unwrap() {
-				logger::error(&msg);
+			let response = receiver.await;
+			if response.is_err() {
+				logger::error("Host didn't start properly yet");
+				return;
+			}
+
+			if response.unwrap().is_none() {
 				return;
 			}
 			node::run(config).await;

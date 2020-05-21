@@ -450,7 +450,7 @@ fn list_modules(_: HashMap<String, Value>) -> Value {
 			return generate_error_response("Host module is not initialized yet");
 		}
 
-		let (sender, receiver) = channel::<Result<Vec<String>, String>>();
+		let (sender, receiver) = channel::<Result<Vec<HashMap<String, Value>>, String>>();
 		message_sender
 			.as_ref()
 			.unwrap()
@@ -467,7 +467,7 @@ fn list_modules(_: HashMap<String, Value>) -> Value {
 				map.insert(String::from("success"), Value::Bool(true));
 				map.insert(
 					String::from("modules"),
-					Value::Array(modules.into_iter().map(Value::String).collect()),
+					Value::Array(modules.into_iter().map(Value::Object).collect()),
 				);
 				map
 			})

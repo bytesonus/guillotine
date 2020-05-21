@@ -99,8 +99,13 @@ async fn parse_config(mut input: RunnerConfig) -> Result<RunnerConfig> {
 			.unwrap()
 			.to_string();
 		if input.logs.is_some() {
+			let logs = input.logs.unwrap();
+			let log_path = Path::new(&logs);
+			if !log_path.exists().await {
+				fs::create_dir(log_path).await.unwrap();
+			}
 			input.logs = Some(
-				fs::canonicalize(input.logs.unwrap())
+				fs::canonicalize(logs)
 					.await
 					.unwrap()
 					.to_str()
