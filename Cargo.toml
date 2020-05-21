@@ -12,7 +12,7 @@ clap = "2"
 serde_json = "1"
 serde = "1"
 serde_derive = "1"
-juno = "0.1.1"
+juno = { path = "../juno-rust" }
 futures = "0.3.4"
 futures-timer = "3.0.2"
 lazy_static = "1.4.0"

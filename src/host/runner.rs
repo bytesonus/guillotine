@@ -153,7 +153,7 @@ async fn keep_host_alive(
 				// But how will you tell the nodes to restart if juno isn't running to tell them to restart?
 				// Fuck this shit, don't care (╯°□°）╯︵ ┻━┻
 
-				juno_module.close().await;
+				juno_module.close().await.unwrap();
 				drop(juno_module);
 				juno_module = juno_module::setup_host_module(&juno_config, sender.clone()).await;
 			}
@@ -389,7 +389,7 @@ async fn keep_host_alive(
 						response,
 					} => {
 						let node = node_runners
-							.values()
+							.values_mut()
 							.find(|node| node.get_process_by_id(module_id).is_some());
 						if node.is_none() {
 							response
@@ -475,6 +475,14 @@ async fn keep_host_alive(
 								.unwrap();
 							continue;
 						}
+						let process = node.get_process_by_id_mut(module_id);
+						if process.is_none() {
+							response.send(Err(String::from("Node notified successful process restart, but couldn't find the process in host's memory. Data may be stale"))).unwrap();
+							continue;
+						}
+						let process = process.unwrap();
+						process.restarts += 1;
+						process.last_started_at = get_current_millis();
 						response.send(Ok(())).unwrap();
 					}
 					msg => panic!("Unhandled guillotine message: {:#?}", msg),
