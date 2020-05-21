@@ -90,7 +90,7 @@ pub async fn setup_host_module(
 		.register_hook("juno.moduleDeactivated", module_deactivated)
 		.await
 		.unwrap();
-	
+
 	MESSAGE_SENDER.write().await.replace(sender);
 
 	module
