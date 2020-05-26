@@ -219,7 +219,7 @@ async fn keep_processes_alive(
 				if !juno_process.is_process_running() {
 					module.close().await;
 					drop(module);
-					
+
 					juno_process.respawn().await;
 					ensure_juno_initialized(juno_config.clone()).await;
 
@@ -270,7 +270,7 @@ async fn keep_processes_alive(
 								response_sender.send(true).unwrap();
 								module.close().await;
 								drop(module);
-								
+
 								juno_process.respawn().await;
 								ensure_juno_initialized(juno_config.clone()).await;
 
