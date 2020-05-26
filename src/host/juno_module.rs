@@ -257,14 +257,12 @@ fn register_process(mut args: HashMap<String, Value>) -> Value {
 			.clone()
 			.send(GuillotineMessage::RegisterProcess {
 				node_name,
-				process_data: Box::new(ProcessData::new(
-					log_dir,
-					working_dir,
-					config,
-					status,
-					last_started_at,
-					created_at,
-				)),
+				process_log_dir: log_dir,
+				process_working_dir: working_dir,
+				process_config: config,
+				process_status: status,
+				process_last_started_at: last_started_at,
+				process_created_at: created_at,
 				response: sender,
 			})
 			.await
