@@ -1,4 +1,3 @@
-use super::{ModuleRunnerConfig, ModuleRunningStatus};
 use crate::models::{GuillotineNode, ProcessData};
 use futures::channel::oneshot::Sender;
 use juno::models::Value;
@@ -14,12 +13,7 @@ pub enum GuillotineMessage {
 	},
 	RegisterProcess {
 		node_name: String,
-		process_log_dir: Option<String>,
-		process_working_dir: String,
-		process_config: ModuleRunnerConfig,
-		process_status: ModuleRunningStatus,
-		process_last_started_at: u64,
-		process_created_at: u64,
+		process_data: Box<ProcessData>,
 		response: Sender<Result<u64, String>>,
 	},
 	ProcessExited {

@@ -2,7 +2,7 @@ use crate::{
 	host::juno_module,
 	models::{
 		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
-		ProcessData, RunnerConfig,
+		RunnerConfig,
 	},
 	node::Process,
 	utils::{constants, logger},
@@ -189,12 +189,7 @@ async fn keep_host_alive(
 					}
 					GuillotineMessage::RegisterProcess {
 						node_name,
-						process_log_dir,
-						process_working_dir,
-						process_config,
-						process_status,
-						process_last_started_at,
-						process_created_at,
+						mut process_data,
 						response,
 					} => {
 						if !node_runners.contains_key(&node_name) {
@@ -204,17 +199,10 @@ async fn keep_host_alive(
 
 						// Find a runner which runs a module of the same name
 						let runner = node_runners.values_mut().find(|runner| {
-							runner.get_process_by_name(&process_config.name).is_some()
+							runner
+								.get_process_by_name(&process_data.config.name)
+								.is_some()
 						});
-
-						let mut process_data = ProcessData::new(
-							process_log_dir,
-							process_working_dir,
-							process_config,
-							process_status,
-							process_last_started_at,
-							process_created_at,
-						);
 
 						// There's a runner which runs a module of the same name
 						if let Some(runner) = runner {
@@ -234,7 +222,7 @@ async fn keep_host_alive(
 							// There's a stale module re-registering itself.
 							let module_id = process.unwrap().module_id;
 							process_data.module_id = module_id;
-							runner.register_process(process_data);
+							runner.register_process(process_data.as_ref().clone());
 
 							response.send(Ok(module_id)).unwrap();
 							continue;
@@ -253,7 +241,7 @@ async fn keep_host_alive(
 						let assigned_pid = pid;
 						pid += 1;
 						process_data.module_id = assigned_pid;
-						runner.register_process(process_data);
+						runner.register_process(process_data.as_ref().clone());
 
 						response.send(Ok(assigned_pid)).unwrap();
 					}
