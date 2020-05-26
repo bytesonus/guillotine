@@ -8,29 +8,38 @@ extern crate chrono;
 extern crate clap;
 extern crate cli_table;
 extern crate colored;
+extern crate ctrlc;
 extern crate futures;
 extern crate futures_timer;
 extern crate juno;
 extern crate serde;
 extern crate serde_json;
 
-mod cli;
-mod juno_module;
-mod logger;
-mod misc;
-mod parser;
-mod process_runner;
-mod runner;
+#[cfg(target_family = "unix")]
+extern crate nix;
 
-use async_std::{fs, path::Path};
+#[cfg(target_family = "windows")]
+extern crate winapi;
+
+mod cli;
+mod exec;
+mod models;
+mod utils;
+
+use exec::runner;
+use models::parser;
+use utils::{constants, logger};
+
+use async_std::{fs, path::Path, task};
 use clap::{App, Arg, SubCommand};
+use futures::future;
 
 #[async_std::main]
 async fn main() {
-	let args = App::new(misc::APP_NAME)
-		.version(misc::APP_VERSION)
-		.author(misc::APP_AUTHORS)
-		.about(misc::APP_ABOUT)
+	let args = App::new(constants::APP_NAME)
+		.version(constants::APP_VERSION)
+		.author(constants::APP_AUTHORS)
+		.about(constants::APP_ABOUT)
 		.subcommand(
 			SubCommand::with_name("run").about("Run the application with a given config file"),
 		)
@@ -54,6 +63,16 @@ async fn main() {
 						.allow_hyphen_values(false),
 				),
 		)
+		.subcommand(
+			SubCommand::with_name("restart")
+				.about("Restarts a process with a processId")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				),
+		)
 		.arg(
 			Arg::with_name("config")
 				.short("c")
@@ -65,6 +84,8 @@ async fn main() {
 				.help("Sets the location of the config file"),
 		)
 		.get_matches();
+
+	ctrlc::set_handler(|| task::block_on(on_exit())).expect("Error setting the CtrlC handler");
 
 	let config_path = Path::new(args.value_of("config").unwrap_or("./config.json"));
 
@@ -92,6 +113,12 @@ async fn main() {
 		("list-processes", Some(_)) => cli::list_processes(config).await,
 		("list-modules", Some(_)) => cli::list_modules(config).await,
 		("info", Some(args)) => cli::get_module_info(config, args).await,
+		("restart", Some(args)) => cli::restart_process(config, args).await,
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}
+}
+
+async fn on_exit() {
+	logger::info("Recieved exit code. Closing all modules");
+	future::join(runner::on_exit(), cli::on_exit()).await;
 }

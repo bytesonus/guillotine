@@ -15,7 +15,10 @@
 					"port": 2203,
 					"bind-addr": "127.0.0.1"
 				},
-				"modules": "./modules"
+				"modules": {
+					"path": "./modules",
+					"logs": "./logs"
+				}
 			}
 		},
 		{
@@ -31,7 +34,10 @@
 					"connection_type": "unix_socket",
 					"socket_path": "./juno.sock"
 				},
-				"modules": "./modules"
+				"modules": {
+					"path": "./modules",
+					"logs": "./logs"
+				}
 			}
 		}
 	]

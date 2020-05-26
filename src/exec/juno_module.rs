@@ -1,8 +1,7 @@
 use crate::{
-	misc,
-	misc::GuillotineMessage,
-	parser::ConfigValue,
-	process_runner::{ModuleRunningStatus, ProcessRunner},
+	exec::process::ProcessRunner,
+	models::{GuillotineMessage, GuillotineSpecificConfig, ModuleRunningStatus},
+	utils::constants,
 };
 use std::{collections::HashMap, sync::Mutex};
 
@@ -21,7 +20,7 @@ lazy_static! {
 }
 
 pub async fn setup_module(
-	config: ConfigValue,
+	config: GuillotineSpecificConfig,
 	sender: UnboundedSender<GuillotineMessage>,
 ) -> JunoModule {
 	let mut message_sender = MESSAGE_SENDER.lock().unwrap();
@@ -39,12 +38,17 @@ pub async fn setup_module(
 	};
 
 	module
-		.initialize(misc::APP_NAME, misc::APP_VERSION, HashMap::new())
+		.initialize(constants::APP_NAME, constants::APP_VERSION, HashMap::new())
 		.await
 		.expect("Could not initialize Guillotine Juno Module");
 
 	module
 		.declare_function("listProcesses", list_processes)
+		.await
+		.unwrap();
+
+	module
+		.declare_function("restartProcess", restart_process)
 		.await
 		.unwrap();
 
@@ -99,4 +103,62 @@ fn list_processes(_: HashMap<String, Value>) -> Value {
 			})
 			.collect(),
 	)
+}
+
+fn restart_process(args: HashMap<String, Value>) -> Value {
+	let pid = args.get("processId");
+	if pid.is_none() {
+		return Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(false));
+			map.insert(
+				String::from("error"),
+				Value::String(String::from("No PID supplied")),
+			);
+			map
+		});
+	}
+	let pid = pid.unwrap().as_number();
+	if pid.is_none() {
+		return Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(false));
+			map.insert(
+				String::from("error"),
+				Value::String(String::from("PID supplied is not a number")),
+			);
+			map
+		});
+	}
+	let pid = match pid.unwrap() {
+		Number::Float(num) => *num as u64,
+		Number::NegInt(num) => *num as u64,
+		Number::PosInt(num) => *num,
+	};
+
+	let message_sender = MESSAGE_SENDER.lock().unwrap();
+	let mut message_sender = message_sender.as_ref().unwrap();
+
+	let (sender, receiver) = channel::<bool>();
+
+	task::block_on(message_sender.send(GuillotineMessage::RestartProcess(pid, sender))).unwrap();
+	let found_process = task::block_on(receiver).unwrap();
+
+	if found_process {
+		Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(true));
+			map
+		})
+	} else {
+		Value::Object({
+			let mut map = HashMap::new();
+			map.insert(String::from("success"), Value::Bool(false));
+			map.insert(
+				String::from("error"),
+				Value::String(String::from("No process found with that PID")),
+			);
+			map
+		})
+	}
 }
