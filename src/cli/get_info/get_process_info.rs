@@ -1,5 +1,5 @@
 use crate::{
-	cli::{get_date_time, get_juno_module_from_config, get_duration},
+	cli::{get_date_time, get_duration, get_juno_module_from_config},
 	models::RunnerConfig,
 	utils::{constants, logger},
 };
@@ -225,7 +225,7 @@ pub async fn get_process_info(config: RunnerConfig, pid: u64) {
 						.as_number()
 						.unwrap()
 						.as_i64()
-						.unwrap()
+						.unwrap(),
 				),
 				Default::default(),
 			),

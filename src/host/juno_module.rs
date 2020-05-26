@@ -828,7 +828,7 @@ fn get_process_info(mut args: HashMap<String, Value>) -> Value {
 								ModuleRunningStatus::Offline => "offline",
 							})),
 						);
-						map.insert(String::from("node"), Value::String(node_name.clone()));
+						map.insert(String::from("node"), Value::String(node_name));
 						map.insert(
 							String::from("restarts"),
 							Value::Number(Number::NegInt(restarts)),
