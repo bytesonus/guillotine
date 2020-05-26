@@ -82,6 +82,11 @@ pub async fn setup_host_module(
 		.unwrap();
 
 	module
+		.declare_function("getProcessInfo", get_process_info)
+		.await
+		.unwrap();
+
+	module
 		.declare_function("restartProcess", restart_process)
 		.await
 		.unwrap();
@@ -555,8 +560,6 @@ fn list_all_processes(_: HashMap<String, Value>) -> Value {
 							let ProcessData {
 								module_id,
 								config,
-								log_dir,
-								working_dir,
 								status,
 								restarts,
 								crashes,
@@ -572,16 +575,6 @@ fn list_all_processes(_: HashMap<String, Value>) -> Value {
 									Value::Number(Number::PosInt(module_id)),
 								);
 								map.insert(String::from("name"), Value::String(config.name));
-
-								map.insert(
-									String::from("logDir"),
-									if let Some(log_dir) = log_dir {
-										Value::String(log_dir)
-									} else {
-										Value::Null
-									},
-								);
-								map.insert(String::from("workingDir"), Value::String(working_dir));
 
 								map.insert(
 									String::from("status"),
@@ -663,8 +656,6 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 								let ProcessData {
 									module_id,
 									config,
-									log_dir,
-									working_dir,
 									status,
 									restarts,
 									crashes,
@@ -680,19 +671,6 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 										Value::Number(Number::PosInt(module_id)),
 									);
 									map.insert(String::from("name"), Value::String(config.name));
-
-									map.insert(
-										String::from("logDir"),
-										if let Some(log_dir) = log_dir {
-											Value::String(log_dir)
-										} else {
-											Value::Null
-										},
-									);
-									map.insert(
-										String::from("workingDir"),
-										Value::String(working_dir),
-									);
 
 									map.insert(
 										String::from("status"),
@@ -728,6 +706,148 @@ fn list_processes(mut args: HashMap<String, Value>) -> Value {
 							})
 							.collect(),
 					),
+				);
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn get_process_info(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(String, ProcessData), String>>();
+		message_sender
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::GetProcessInfo {
+				module_id,
+				response: sender,
+			})
+			.await
+			.unwrap();
+		drop(message_sender);
+
+		let result = receiver.await.unwrap();
+		if let Ok((node_name, process)) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map.insert(
+					String::from("process"),
+					Value::Object({
+						let uptime = process.get_uptime();
+
+						let ProcessData {
+							log_dir,
+							working_dir,
+							module_id,
+							config,
+							status,
+							restarts,
+							crashes,
+							created_at,
+							..
+						} = process;
+						let mut map = HashMap::new();
+
+						map.insert(String::from("id"), Value::Number(Number::PosInt(module_id)));
+						map.insert(String::from("name"), Value::String(config.name));
+
+						map.insert(
+							String::from("config"),
+							Value::Object({
+								let mut map = HashMap::new();
+
+								map.insert(String::from("command"), Value::String(config.command));
+
+								if let Some(interpreter) = config.interpreter {
+									map.insert(
+										String::from("interpreter"),
+										Value::String(interpreter),
+									);
+								}
+
+								map.insert(
+									String::from("args"),
+									Value::Array(if let Some(args) = config.args {
+										args.into_iter().map(Value::String).collect()
+									} else {
+										vec![]
+									}),
+								);
+
+								map.insert(
+									String::from("envs"),
+									Value::Object(if let Some(envs) = config.envs {
+										envs.into_iter()
+											.map(|(key, value)| (key, Value::String(value)))
+											.collect()
+									} else {
+										HashMap::new()
+									}),
+								);
+
+								map
+							}),
+						);
+
+						map.insert(
+							String::from("logDir"),
+							if let Some(log_dir) = log_dir {
+								Value::String(log_dir)
+							} else {
+								Value::Null
+							},
+						);
+						map.insert(String::from("workingDir"), Value::String(working_dir));
+
+						map.insert(
+							String::from("status"),
+							Value::String(String::from(match status {
+								ModuleRunningStatus::Running => "running",
+								ModuleRunningStatus::Stopped => "stopped",
+								ModuleRunningStatus::Offline => "offline",
+							})),
+						);
+						map.insert(String::from("node"), Value::String(node_name.clone()));
+						map.insert(
+							String::from("restarts"),
+							Value::Number(Number::NegInt(restarts)),
+						);
+						map.insert(
+							String::from("uptime"),
+							Value::Number(Number::PosInt(uptime)),
+						);
+						map.insert(
+							String::from("crashes"),
+							Value::Number(Number::PosInt(crashes)),
+						);
+						map.insert(
+							String::from("createdAt"),
+							Value::Number(Number::PosInt(created_at)),
+						);
+
+						map
+					}),
 				);
 				map
 			})

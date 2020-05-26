@@ -1,8 +1,8 @@
+use super::{ModuleRunnerConfig, ModuleRunningStatus};
 use crate::models::{GuillotineNode, ProcessData};
 use futures::channel::oneshot::Sender;
 use juno::models::Value;
 use std::collections::HashMap;
-use super::{ModuleRunningStatus, ModuleRunnerConfig};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -55,11 +55,14 @@ pub enum GuillotineMessage {
 		module_id: u64,
 		response: Sender<Result<(), String>>,
 	},
+	GetProcessInfo {
+		module_id: u64,
+		response: Sender<Result<(String, ProcessData), String>>, // (node_name, process_data)
+	},
 	AddProcess,
 	StopProcess,
 	StartProcess,
 	DeleteProcess,
-	Info,
 }
 // TODO ADD:
 // ReloadConfig,

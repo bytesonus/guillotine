@@ -1,6 +1,5 @@
 use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, utils::constants};
 
-use clap::ArgMatches;
 use cli_table::{
 	format::{
 		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
@@ -10,7 +9,7 @@ use cli_table::{
 use juno::models::Value;
 use std::collections::HashMap;
 
-pub async fn get_module_info(config: RunnerConfig, args: &ArgMatches<'_>) {
+pub async fn get_module_info(config: RunnerConfig, module_id: &str) {
 	let result = get_juno_module_from_config(&config);
 	let mut module = if let Ok(module) = result {
 		module
@@ -22,12 +21,6 @@ pub async fn get_module_info(config: RunnerConfig, args: &ArgMatches<'_>) {
 		});
 		return;
 	};
-	let module_id = args.value_of("pid");
-	if module_id.is_none() {
-		logger::error("No pid supplied!");
-		return;
-	}
-	let module_id = module_id.unwrap();
 
 	module
 		.initialize(
@@ -78,8 +71,7 @@ pub async fn get_module_info(config: RunnerConfig, args: &ArgMatches<'_>) {
 	);
 
 	// Now make the data
-	let mut table_data = vec![];
-	table_data.extend(vec![
+	let table_data = vec![
 		Row::new(vec![
 			Cell::new("Module ID", header_format),
 			Cell::new(
@@ -162,7 +154,7 @@ pub async fn get_module_info(config: RunnerConfig, args: &ArgMatches<'_>) {
 				Default::default(),
 			),
 		]),
-	]);
+	];
 	let table = Table::new(table_data, table_format);
 
 	// Print it out

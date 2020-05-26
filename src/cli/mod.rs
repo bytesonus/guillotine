@@ -1,11 +1,11 @@
-mod get_module_info;
+mod get_info;
 mod list_all_processes;
 mod list_modules;
 mod list_nodes;
 mod list_processes;
 mod restart_process;
 
-pub use get_module_info::get_module_info;
+pub use get_info::get_info;
 pub use list_all_processes::list_all_processes;
 pub use list_modules::list_modules;
 pub use list_nodes::list_nodes;

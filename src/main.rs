@@ -136,7 +136,7 @@ async fn main() {
 		("list-nodes", Some(_)) => cli::list_nodes(config).await,
 		("list-all-processes", Some(_)) => cli::list_all_processes(config).await,
 		("list-processes", Some(args)) => cli::list_processes(config, args).await,
-		("info", Some(args)) => cli::get_module_info(config, args).await,
+		("info", Some(args)) => cli::get_info(config, args).await,
 		("restart", Some(args)) => cli::restart_process(config, args).await,
 
 		(cmd, _) => println!("Unknown command '{}'", cmd),

@@ -2,7 +2,7 @@ use crate::{
 	host::juno_module,
 	models::{
 		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
-		RunnerConfig, ProcessData,
+		ProcessData, RunnerConfig,
 	},
 	node::Process,
 	utils::{constants, logger},
@@ -204,9 +204,7 @@ async fn keep_host_alive(
 
 						// Find a runner which runs a module of the same name
 						let runner = node_runners.values_mut().find(|runner| {
-							runner
-								.get_process_by_name(&process_config.name)
-								.is_some()
+							runner.get_process_by_name(&process_config.name).is_some()
 						});
 
 						let mut process_data = ProcessData::new(
@@ -499,6 +497,42 @@ async fn keep_host_alive(
 						process.restarts += 1;
 						process.last_started_at = get_current_millis();
 						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::GetProcessInfo {
+						module_id,
+						response,
+					} => {
+						let node = node_runners.values().find_map(|node| {
+							if let Some(process) = node.get_process_by_id(module_id) {
+								Some((node, process))
+							} else {
+								None
+							}
+						});
+						if node.is_none() {
+							response
+								.send(Err(format!(
+									"No node found running the module with the ID {}",
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+						let node = node.unwrap();
+						if !node.0.connected {
+							response
+								.send(Err(format!(
+									"The node (with the name '{}') running the module {} is not connected",
+									node.0.name,
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+
+						response
+							.send(Ok((node.0.name.clone(), node.1.clone())))
+							.unwrap();
 					}
 					msg => panic!("Unhandled guillotine message: {:#?}", msg),
 				}
