@@ -42,7 +42,53 @@ async fn main() {
 		.author(constants::APP_AUTHORS)
 		.about(constants::APP_ABOUT)
 		.subcommand(
-			SubCommand::with_name("run").about("Run the application with a given config file"),
+			SubCommand::with_name("add")
+				.alias("a")
+				.about("Adds a process to the node from a module.json")
+				.arg(
+					Arg::with_name("path")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				)
+				.arg(
+					Arg::with_name("node")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(true),
+				)
+				.arg(
+					Arg::with_name("dont-start")
+						.takes_value(false)
+						.required(false),
+				),
+		)
+		.subcommand(
+			SubCommand::with_name("delete")
+				.alias("d")
+				.about("Stops a module and removes it from the list")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				),
+		)
+		.subcommand(
+			SubCommand::with_name("info")
+				.alias("i")
+				.about("Get information about a process / module")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				),
+		)
+		.subcommand(
+			SubCommand::with_name("list-all-processes")
+				.alias("lap")
+				.about("List all running processes and their states across all nodes"),
 		)
 		.subcommand(
 			SubCommand::with_name("list-modules")
@@ -53,11 +99,6 @@ async fn main() {
 			SubCommand::with_name("list-nodes")
 				.alias("ln")
 				.about("List all the nodes registered with this host and their details"),
-		)
-		.subcommand(
-			SubCommand::with_name("list-all-processes")
-				.alias("lap")
-				.about("List all running processes and their states across all nodes"),
 		)
 		.subcommand(
 			SubCommand::with_name("list-processes")
@@ -82,15 +123,27 @@ async fn main() {
 				),
 		)
 		.subcommand(
-			SubCommand::with_name("info")
-				.alias("i")
-				.about("Get information about a process / module")
+			SubCommand::with_name("start")
+				.about("Starts a process with a processId, if the process isn't running already")
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
 						.required(true)
 						.allow_hyphen_values(false),
 				),
+		)
+		.subcommand(
+			SubCommand::with_name("stop")
+				.about("Stops a process with a processId, if it's running")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.required(true)
+						.allow_hyphen_values(false),
+				),
+		)
+		.subcommand(
+			SubCommand::with_name("run").about("Run the application with a given config file"),
 		)
 		.arg(
 			Arg::with_name("config")
@@ -132,12 +185,16 @@ async fn main() {
 		("run", Some(_)) | ("", _) => runner::run(config).await,
 
 		// Cli stuff
+		("add", Some(args)) => cli::add_process(config, args).await,
+		("delete", Some(args)) => cli::delete_process(config, args).await,
+		("info", Some(args)) => cli::get_info(config, args).await,
+		("list-all-processes", Some(_)) => cli::list_all_processes(config).await,
 		("list-modules", Some(_)) => cli::list_modules(config).await,
 		("list-nodes", Some(_)) => cli::list_nodes(config).await,
-		("list-all-processes", Some(_)) => cli::list_all_processes(config).await,
 		("list-processes", Some(args)) => cli::list_processes(config, args).await,
-		("info", Some(args)) => cli::get_info(config, args).await,
 		("restart", Some(args)) => cli::restart_process(config, args).await,
+		("start", Some(args)) => cli::start_process(config, args).await,
+		("stop", Some(args)) => cli::stop_process(config, args).await,
 
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}

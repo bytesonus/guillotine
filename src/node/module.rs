@@ -5,7 +5,7 @@ use async_std::{
 	path::{Path, PathBuf},
 };
 
-pub async fn get_module_from_path(path: &str, log_dir: Option<String>) -> Option<Process> {
+pub async fn get_module_from_path(path: &str, log_dir: &Option<String>) -> Option<Process> {
 	let mut path = PathBuf::from(path);
 	if !path.exists().await {
 		return None;
@@ -41,7 +41,7 @@ pub async fn get_module_from_path(path: &str, log_dir: Option<String>) -> Option
 	let working_dir = path.parent().unwrap().to_str().unwrap().to_owned();
 
 	Some(if let Some(log_dir) = log_dir {
-		let main_dir = Path::new(&log_dir);
+		let main_dir = Path::new(log_dir);
 		if !main_dir.exists().await {
 			fs::create_dir(&main_dir).await.unwrap();
 		}

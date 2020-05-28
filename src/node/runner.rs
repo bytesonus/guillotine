@@ -19,17 +19,15 @@ lazy_static! {
 	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
 }
 
-pub async fn run(mut config: RunnerConfig) {
+pub async fn run(config: RunnerConfig) {
 	if config.name.is_none() {
 		logger::error("Node name cannot be null");
 		return;
 	}
 
-	let node_name = config.name.unwrap();
-	let node = config.node.take().unwrap();
-	let log_dir = config.logs;
+	let log_dir = &config.logs;
 
-	while !try_connecting_to_host(&node).await {
+	while !try_connecting_to_host(config.node.as_ref().unwrap()).await {
 		logger::error(&format!(
 			"Could not connect to the host instance of {}. Will try again in {} ms",
 			constants::APP_NAME,
@@ -44,14 +42,14 @@ pub async fn run(mut config: RunnerConfig) {
 	// Populate any auto-start modules here
 	let mut auto_start_processes = vec![];
 	if config.modules.is_some() {
-		let modules_dir = config.modules.unwrap().directory;
-		let modules_path = Path::new(&modules_dir);
+		let modules_dir = &config.modules.as_ref().unwrap().directory;
+		let modules_path = Path::new(modules_dir);
 
 		if modules_path.exists().await && modules_path.is_dir().await {
 			let mut dir_iterator = fs::read_dir(modules_dir).await.unwrap();
 			while let Some(Ok(dir)) = dir_iterator.next().await {
 				if let Some(process) =
-					get_module_from_path(dir.path().to_str().unwrap(), log_dir.clone()).await
+					get_module_from_path(dir.path().to_str().unwrap(), log_dir).await
 				{
 					auto_start_processes.push(process);
 				}
@@ -59,17 +57,22 @@ pub async fn run(mut config: RunnerConfig) {
 		}
 	}
 
-	keep_node_alive(node_name, node, auto_start_processes).await;
+	keep_node_alive(config, auto_start_processes).await;
 }
 
 pub async fn on_exit() {
 	*CLOSE_FLAG.lock().await = true;
 }
 
-async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_processes: Vec<Process>) {
+async fn keep_node_alive(config: RunnerConfig, auto_start_processes: Vec<Process>) {
 	// Initialize the guillotine juno module
 	let (sender, mut command_receiver) = unbounded::<GuillotineMessage>();
-	let response = juno_module::setup_module(node_name.clone(), &node, sender.clone()).await;
+	let response = juno_module::setup_module(
+		config.name.as_ref().unwrap().clone(),
+		&config.node.unwrap(),
+		sender.clone(),
+	)
+	.await;
 	if let Err(error) = response {
 		logger::error(&format!("Error setting up Juno module: {}", error));
 		return;
@@ -80,8 +83,12 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 
 	// First, register all the auto_start_processes
 	for mut process in auto_start_processes {
-		let response =
-			juno_module::register_module(node_name.clone(), &mut juno_module, &mut process).await;
+		let response = juno_module::register_module(
+			config.name.as_ref().unwrap().clone(),
+			&mut juno_module,
+			&mut process,
+		)
+		.await;
 		if let Ok(module_id) = response {
 			// Then, store their assigned moduleIds in a hashmap.
 			ids_to_processes.insert(module_id, process);
@@ -114,6 +121,13 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 					if let (false, crashed) = process.is_process_running() {
 						// Process ain't running.
 
+						if !process.should_be_running {
+							// The process isn't expected to be running.
+							// Either it has been stopped or it just isn't started yet
+							// Don't bother processing this module. Let it stay dead.
+							continue;
+						}
+
 						if process.start_scheduled_at.is_some() {
 							// The process is already scheduled to start at some point in the future.
 							// Don't bother notifying the host about this
@@ -134,7 +148,10 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 						let response = juno_module
 							.call_function(&format!("{}.onProcessExited", constants::APP_NAME), {
 								let mut map = HashMap::new();
-								map.insert(String::from("node"), Value::String(node_name.clone()));
+								map.insert(
+									String::from("node"),
+									Value::String(config.name.as_ref().unwrap().clone()),
+								);
 								map.insert(
 									String::from("moduleId"),
 									Value::Number(Number::PosInt(*module_id)),
@@ -216,7 +233,7 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 										let mut map = HashMap::new();
 										map.insert(
 											String::from("node"),
-											Value::String(node_name.clone()),
+											Value::String(config.name.as_ref().unwrap().clone()),
 										);
 										map.insert(
 											String::from("moduleId"),
@@ -296,10 +313,106 @@ async fn keep_node_alive(node_name: String, node: NodeConfig, auto_start_process
 							.await;
 						response.send(Ok(())).unwrap();
 					}
+					GuillotineMessage::AddProcess {
+						node_name: _,
+						path,
+						response,
+					} => {
+						let mut process = if let Some(process) =
+							get_module_from_path(&path, &config.logs).await
+						{
+							process
+						} else {
+							response
+								.send(Err(format!(
+									"{}{}{}",
+									"The path provided is not a valid path to a module. ",
+									"Please ensure that the path points to a module.json file ",
+									"or a folder containing the file"
+								)))
+								.unwrap();
+							continue;
+						};
+
+						let result = juno_module::register_module(
+							config.name.as_ref().unwrap().clone(),
+							&mut juno_module,
+							&mut process,
+						)
+						.await;
+						let module_id = if let Ok(module_id) = result {
+							module_id
+						} else {
+							response
+								.send(Err(format!(
+									"Error while registering the module '{}': {}",
+									process.runner_config.name,
+									result.unwrap_err()
+								)))
+								.unwrap();
+							continue;
+						};
+
+						// Then, store their assigned moduleIds in a hashmap.
+						ids_to_processes.insert(module_id, process);
+						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::StartProcess {
+						module_id,
+						response,
+					} => {
+						if !ids_to_processes.contains_key(&module_id) {
+							response.send(Err(String::from("Could not find any process with that moduleId in this runner. Is this stale data?"))).unwrap();
+							continue;
+						}
+
+						let process = ids_to_processes.get_mut(&module_id).unwrap();
+						if !process.is_process_running().0 {
+							process.respawn().await;
+							process.should_be_running = true;
+						}
+						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::StopProcess {
+						module_id,
+						response,
+					} => {
+						if !ids_to_processes.contains_key(&module_id) {
+							response.send(Err(String::from("Could not find any process with that moduleId in this runner. Is this stale data?"))).unwrap();
+							continue;
+						}
+
+						let process = ids_to_processes.get_mut(&module_id).unwrap();
+						if process.is_process_running().0 {
+							process.wait_for_quit_or_kill_within(1000).await;
+							process.should_be_running = false;
+						}
+						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::DeleteProcess {
+						module_id,
+						response,
+					} => {
+						if !ids_to_processes.contains_key(&module_id) {
+							response.send(Err(String::from("Could not find any process with that moduleId in this runner. Is this stale data?"))).unwrap();
+							continue;
+						}
+
+						let process = ids_to_processes.get_mut(&module_id).unwrap();
+						if process.is_process_running().0 {
+							process.wait_for_quit_or_kill_within(1000).await;
+						}
+						ids_to_processes.remove(&module_id);
+						response.send(Ok(())).unwrap();
+					}
 					msg => panic!("Unhandled guillotine message: {:#?}", msg),
 				}
 			}
 		}
+	}
+
+	for (_, mut process) in ids_to_processes {
+		process.wait_for_quit_or_kill_within(1000).await;
 	}
 }
 

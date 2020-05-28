@@ -1,4 +1,4 @@
-use crate::models::{GuillotineNode, ProcessData};
+use crate::host::{GuillotineNode, ProcessData};
 use futures::channel::oneshot::Sender;
 use juno::models::Value;
 use std::collections::HashMap;
@@ -53,10 +53,23 @@ pub enum GuillotineMessage {
 		module_id: u64,
 		response: Sender<Result<(String, ProcessData), String>>, // (node_name, process_data)
 	},
-	AddProcess,
-	StopProcess,
-	StartProcess,
-	DeleteProcess,
+	AddProcess {
+		node_name: String,
+		path: String,
+		response: Sender<Result<(), String>>,
+	},
+	StartProcess {
+		module_id: u64,
+		response: Sender<Result<(), String>>,
+	},
+	StopProcess {
+		module_id: u64,
+		response: Sender<Result<(), String>>,
+	},
+	DeleteProcess {
+		module_id: u64,
+		response: Sender<Result<(), String>>,
+	},
 }
 // TODO ADD:
 // ReloadConfig,

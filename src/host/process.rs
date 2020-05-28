@@ -40,7 +40,11 @@ impl ProcessData {
 	}
 
 	pub fn get_uptime(&self) -> u64 {
-		get_current_time() - self.last_started_at
+		if self.status == ModuleRunningStatus::Running {
+			get_current_time() - self.last_started_at
+		} else {
+			0
+		}
 	}
 }
 

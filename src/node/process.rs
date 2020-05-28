@@ -16,6 +16,7 @@ pub struct Process {
 	pub created_at: u64,
 	pub start_scheduled_at: Option<u64>,
 	pub has_been_crashing: bool,
+	pub should_be_running: bool,
 }
 
 impl Process {
@@ -33,6 +34,7 @@ impl Process {
 			created_at: get_current_time(),
 			start_scheduled_at: None,
 			has_been_crashing: false,
+			should_be_running: true,
 		}
 	}
 
@@ -56,8 +58,7 @@ impl Process {
 		}
 	}
 
-	pub async fn respawn(&mut self) {
-		logger::info(&format!("Respawning '{}'", self.runner_config.name));
+	pub async fn wait_for_quit_or_kill_within(&mut self, wait_ms: u64) {
 		if self.process.is_some() && self.is_process_running().0 {
 			self.send_quit_signal();
 			let quit_time = get_current_time();
@@ -69,14 +70,19 @@ impl Process {
 					break;
 				}
 				// If the processes is running, check if it's been given enough time.
-				if get_current_time() > quit_time + 1000 {
-					// It's been trying to quit for more than 1 second. Kill it and quit
+				if get_current_time() > quit_time + wait_ms {
+					// It's been trying to quit for more than the given duration. Kill it and quit
 					logger::info(&format!("Killing process: {}", self.runner_config.name));
-					self.process.as_mut().unwrap().kill().unwrap_or(());
+					self.kill();
 					break;
 				}
 			}
 		}
+	}
+
+	pub async fn respawn(&mut self) {
+		logger::info(&format!("Respawning '{}'", self.runner_config.name));
+		self.wait_for_quit_or_kill_within(1000).await;
 
 		let child = if self.runner_config.interpreter.is_none() {
 			let mut command = Command::new(&self.runner_config.command);

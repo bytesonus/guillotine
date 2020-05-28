@@ -1,16 +1,24 @@
+mod add_process;
+mod delete_process;
 mod get_info;
 mod list_all_processes;
 mod list_modules;
 mod list_nodes;
 mod list_processes;
 mod restart_process;
+mod start_process;
+mod stop_process;
 
+pub use add_process::add_process;
+pub use delete_process::delete_process;
 pub use get_info::get_info;
 pub use list_all_processes::list_all_processes;
 pub use list_modules::list_modules;
 pub use list_nodes::list_nodes;
 pub use list_processes::list_processes;
 pub use restart_process::restart_process;
+pub use start_process::start_process;
+pub use stop_process::stop_process;
 
 use crate::models::RunnerConfig;
 use chrono::{prelude::*, Utc};

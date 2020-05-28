@@ -1,8 +1,7 @@
 use crate::{
-	host::juno_module,
+	host::{juno_module, GuillotineNode},
 	models::{
-		GuillotineMessage, GuillotineNode, HostConfig, ModuleRunnerConfig, ModuleRunningStatus,
-		RunnerConfig,
+		GuillotineMessage, HostConfig, ModuleRunnerConfig, ModuleRunningStatus, RunnerConfig,
 	},
 	node::Process,
 	utils::{constants, logger},
@@ -13,7 +12,7 @@ use std::{
 	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use async_std::{fs, net::TcpStream, path::Path, sync::Mutex, task};
+use async_std::{fs, net::TcpStream, path::Path, sync::Mutex};
 use future::Either;
 use futures::{
 	channel::{mpsc::unbounded, oneshot::Sender},
@@ -522,7 +521,370 @@ async fn keep_host_alive(
 							.send(Ok((node.0.name.clone(), node.1.clone())))
 							.unwrap();
 					}
-					msg => panic!("Unhandled guillotine message: {:#?}", msg),
+					GuillotineMessage::AddProcess {
+						node_name,
+						path,
+						response,
+					} => {
+						let node = node_runners.get_mut(&node_name);
+						if node.is_none() {
+							response
+								.send(Err(format!(
+									"Runner node with the name '{}' doesn't exist",
+									node_name
+								)))
+								.unwrap();
+							continue;
+						}
+
+						let result = juno_module
+							.call_function(
+								&format!(
+									"{}-node-{}.addProcess",
+									constants::APP_AUTHORS,
+									node_name
+								),
+								{
+									let mut map = HashMap::new();
+									map.insert(String::from("path"), Value::String(path));
+									map
+								},
+							)
+							.await;
+						if let Err(error) = result {
+							response
+								.send(Err(format!("Error sending the restart command: {}", error)))
+								.unwrap();
+							continue;
+						}
+						let result = result.unwrap();
+						let mut result = if let Value::Object(args) = result {
+							args
+						} else {
+							response
+								.send(Err(format!(
+									"Response of restart command wasn't an object. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+
+						let success = if let Some(Value::Bool(success)) = result.remove("success") {
+							success
+						} else {
+							response
+								.send(Err(format!(
+									"Success key of restart command wasn't a bool. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						if !success {
+							response
+								.send(Err(
+									if let Some(Value::String(error)) = result.remove("error") {
+										format!("Error restarting process: {}", error)
+									} else {
+										format!(
+												"Error key of restart command wasn't a string. Got: {:#?}",
+												result
+											)
+									},
+								))
+								.unwrap();
+							continue;
+						}
+						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::StartProcess {
+						module_id,
+						response,
+					} => {
+						let node = node_runners
+							.values_mut()
+							.find(|node| node.get_process_by_id(module_id).is_some());
+						if node.is_none() {
+							response
+								.send(Err(format!(
+									"No node found running the module with the ID {}",
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+						let node = node.unwrap();
+						if !node.connected {
+							response
+								.send(Err(format!(
+									"The node (with the name '{}') running the module {} is not connected",
+									node.name,
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+
+						// Now start the process
+						let result = juno_module
+							.call_function(
+								&format!("{}-node-{}.startProcess", constants::APP_NAME, node.name),
+								{
+									let mut map = HashMap::new();
+									map.insert(
+										String::from("moduleId"),
+										Value::Number(Number::PosInt(module_id)),
+									);
+									map
+								},
+							)
+							.await;
+						if let Err(error) = result {
+							response
+								.send(Err(format!("Error sending the start command: {}", error)))
+								.unwrap();
+							continue;
+						}
+						let result = result.unwrap();
+						let mut result = if let Value::Object(args) = result {
+							args
+						} else {
+							response
+								.send(Err(format!(
+									"Response of start command wasn't an object. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+
+						let success = if let Some(Value::Bool(success)) = result.remove("success") {
+							success
+						} else {
+							response
+								.send(Err(format!(
+									"Success key of start command wasn't a bool. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						if !success {
+							response
+								.send(Err(
+									if let Some(Value::String(error)) = result.remove("error") {
+										format!("Error starting process: {}", error)
+									} else {
+										format!(
+											"Error key of start command wasn't a string. Got: {:#?}",
+											result
+										)
+									},
+								))
+								.unwrap();
+							continue;
+						}
+						let process = node.get_process_by_id_mut(module_id);
+						if process.is_none() {
+							response.send(Err(String::from("Node notified successful process start, but couldn't find the process in host's memory. Data may be stale"))).unwrap();
+							continue;
+						}
+						let process = process.unwrap();
+						process.status = ModuleRunningStatus::Running;
+						process.last_started_at = get_current_millis();
+						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::StopProcess {
+						module_id,
+						response,
+					} => {
+						let node = node_runners
+							.values_mut()
+							.find(|node| node.get_process_by_id(module_id).is_some());
+						if node.is_none() {
+							response
+								.send(Err(format!(
+									"No node found running the module with the ID {}",
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+						let node = node.unwrap();
+						if !node.connected {
+							response
+								.send(Err(format!(
+									"The node (with the name '{}') running the module {} is not connected",
+									node.name,
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+
+						// Now stop the process
+						let result = juno_module
+							.call_function(
+								&format!("{}-node-{}.stopProcess", constants::APP_NAME, node.name),
+								{
+									let mut map = HashMap::new();
+									map.insert(
+										String::from("moduleId"),
+										Value::Number(Number::PosInt(module_id)),
+									);
+									map
+								},
+							)
+							.await;
+						if let Err(error) = result {
+							response
+								.send(Err(format!("Error sending the stop command: {}", error)))
+								.unwrap();
+							continue;
+						}
+						let result = result.unwrap();
+						let mut result = if let Value::Object(args) = result {
+							args
+						} else {
+							response
+								.send(Err(format!(
+									"Response of stop command wasn't an object. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+
+						let success = if let Some(Value::Bool(success)) = result.remove("success") {
+							success
+						} else {
+							response
+								.send(Err(format!(
+									"Success key of stop command wasn't a bool. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						if !success {
+							response
+								.send(Err(
+									if let Some(Value::String(error)) = result.remove("error") {
+										format!("Error stopping process: {}", error)
+									} else {
+										format!(
+											"Error key of stop command wasn't a string. Got: {:#?}",
+											result
+										)
+									},
+								))
+								.unwrap();
+							continue;
+						}
+						let process = node.get_process_by_id_mut(module_id);
+						if process.is_none() {
+							response.send(Err(String::from("Node notified successful process stop, but couldn't find the process in host's memory. Data may be stale"))).unwrap();
+							continue;
+						}
+						let process = process.unwrap();
+						process.status = ModuleRunningStatus::Stopped;
+						response.send(Ok(())).unwrap();
+					}
+					GuillotineMessage::DeleteProcess {
+						module_id,
+						response,
+					} => {
+						let node = node_runners
+							.values_mut()
+							.find(|node| node.get_process_by_id(module_id).is_some());
+						if node.is_none() {
+							response
+								.send(Err(format!(
+									"No node found running the module with the ID {}",
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+						let node = node.unwrap();
+						if !node.connected {
+							response
+								.send(Err(format!(
+									"The node (with the name '{}') running the module {} is not connected",
+									node.name,
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+
+						// Now delete the process
+						let result = juno_module
+							.call_function(
+								&format!(
+									"{}-node-{}.deleteProcess",
+									constants::APP_NAME,
+									node.name
+								),
+								{
+									let mut map = HashMap::new();
+									map.insert(
+										String::from("moduleId"),
+										Value::Number(Number::PosInt(module_id)),
+									);
+									map
+								},
+							)
+							.await;
+						if let Err(error) = result {
+							response
+								.send(Err(format!("Error sending the delete command: {}", error)))
+								.unwrap();
+							continue;
+						}
+						let result = result.unwrap();
+						let mut result = if let Value::Object(args) = result {
+							args
+						} else {
+							response
+								.send(Err(format!(
+									"Response of delete command wasn't an object. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+
+						let success = if let Some(Value::Bool(success)) = result.remove("success") {
+							success
+						} else {
+							response
+								.send(Err(format!(
+									"Success key of delete command wasn't a bool. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						if !success {
+							response
+								.send(Err(
+									if let Some(Value::String(error)) = result.remove("error") {
+										format!("Error deleting process: {}", error)
+									} else {
+										format!(
+											"Error key of delete command wasn't a string. Got: {:#?}",
+											result
+										)
+									},
+								))
+								.unwrap();
+							continue;
+						}
+						node.delete_process_by_id(module_id);
+						response.send(Ok(())).unwrap();
+					}
 				}
 			}
 		}
@@ -534,27 +896,7 @@ async fn keep_host_alive(
 		"Quitting process: {}",
 		juno_process.runner_config.name
 	));
-	juno_process.send_quit_signal();
-	let quit_time = get_current_millis();
-	loop {
-		// Give the process some time to die.
-		task::sleep(Duration::from_millis(100)).await;
-
-		// If the process is not running, then break
-		if !juno_process.is_process_running().0 {
-			break;
-		}
-		// If the processes is running, check if it's been given enough time.
-		if get_current_millis() > quit_time + 1000 {
-			// It's been trying to quit for more than 1 second. Kill it and quit
-			logger::info(&format!(
-				"Killing process: {}",
-				juno_process.runner_config.name
-			));
-			juno_process.kill();
-			break;
-		}
-	}
+	juno_process.wait_for_quit_or_kill_within(1000).await;
 }
 
 async fn try_connecting_to_juno(host: &HostConfig) -> bool {

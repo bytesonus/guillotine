@@ -54,6 +54,26 @@ pub async fn setup_module(
 		.await
 		.unwrap();
 
+	juno_module
+		.declare_function("addProcess", add_process)
+		.await
+		.unwrap();
+
+	juno_module
+		.declare_function("startProcess", start_process)
+		.await
+		.unwrap();
+
+	juno_module
+		.declare_function("stopProcess", stop_process)
+		.await
+		.unwrap();
+
+	juno_module
+		.declare_function("deleteProcess", delete_process)
+		.await
+		.unwrap();
+
 	// Register node here
 	let response = juno_module
 		.call_function(&format!("{}.registerNode", constants::APP_NAME), {
@@ -229,6 +249,159 @@ fn respawn_process(mut args: HashMap<String, Value>) -> Value {
 			.unwrap()
 			.clone()
 			.send(GuillotineMessage::RestartProcess {
+				module_id,
+				response: sender,
+			})
+			.await
+			.unwrap();
+
+		let result = receiver.await.unwrap();
+		if let Ok(()) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn add_process(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let path = if let Some(Value::String(path)) = args.remove("path") {
+			path
+		} else {
+			return generate_error_response("Path parameter is not a String");
+		};
+
+		let (sender, receiver) = channel::<Result<(), String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::AddProcess {
+				node_name: String::new(),
+				path,
+				response: sender,
+			})
+			.await
+			.unwrap();
+
+		let result = receiver.await.unwrap();
+		if let Ok(()) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn start_process(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(), String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::StartProcess {
+				module_id,
+				response: sender,
+			})
+			.await
+			.unwrap();
+
+		let result = receiver.await.unwrap();
+		if let Ok(()) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn stop_process(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(), String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::StopProcess {
+				module_id,
+				response: sender,
+			})
+			.await
+			.unwrap();
+
+		let result = receiver.await.unwrap();
+		if let Ok(()) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn delete_process(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(), String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::DeleteProcess {
 				module_id,
 				response: sender,
 			})

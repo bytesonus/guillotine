@@ -1,4 +1,4 @@
-use crate::models::ProcessData;
+use super::ProcessData;
 
 #[derive(Debug, Clone)]
 pub struct GuillotineNode {
@@ -40,6 +40,18 @@ impl GuillotineNode {
 			self.processes[position].status = process_data.status;
 		} else {
 			self.processes.push(process_data);
+		}
+	}
+
+	pub fn delete_process_by_id(&mut self, module_id: u64) {
+		let position = self
+			.processes
+			.iter()
+			.position(|process| process.module_id == module_id);
+		// If a process with the same name exists, replace the existing value
+		if let Some(position) = position {
+			// Only update the values that can change. Retain the remaining values
+			self.processes.remove(position);
 		}
 	}
 }
