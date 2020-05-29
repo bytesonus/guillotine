@@ -30,7 +30,10 @@ pub async fn list_modules(config: RunnerConfig) {
 		.await
 		.unwrap();
 	let modules = module
-		.call_function("juno.listModules", HashMap::new())
+		.call_function(
+			&format!("{}.listModules", constants::APP_NAME),
+			HashMap::new(),
+		)
 		.await
 		.unwrap();
 	if !modules.is_array() {
