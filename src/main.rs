@@ -48,19 +48,29 @@ async fn main() {
 				.arg(
 					Arg::with_name("path")
 						.takes_value(true)
+						.value_name("PATH")
 						.required(true)
 						.allow_hyphen_values(false),
 				)
 				.arg(
 					Arg::with_name("node")
+						.short("n")
+						.long("node")
 						.takes_value(true)
+						.value_name("NODE-NAME")
 						.required(true)
+						.multiple(false)
 						.allow_hyphen_values(true),
 				)
 				.arg(
-					Arg::with_name("dont-start")
-						.takes_value(false)
-						.required(false),
+					Arg::with_name("autostart")
+						.short("a")
+						.long("autostart")
+						.takes_value(true)
+						.value_name("true / false")
+						.required(false)
+						.multiple(false)
+						.allow_hyphen_values(true),
 				),
 		)
 		.subcommand(
@@ -70,6 +80,7 @@ async fn main() {
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
+						.value_name("PID")
 						.required(true)
 						.allow_hyphen_values(false),
 				),
@@ -81,6 +92,7 @@ async fn main() {
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
+						.value_name("PID")
 						.required(true)
 						.allow_hyphen_values(false),
 				),
@@ -109,6 +121,7 @@ async fn main() {
 						.short("n")
 						.long("node")
 						.takes_value(true)
+						.value_name("NODE-NAME")
 						.required(false),
 				),
 		)
@@ -118,6 +131,7 @@ async fn main() {
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
+						.value_name("PID")
 						.required(true)
 						.allow_hyphen_values(false),
 				),
@@ -128,6 +142,7 @@ async fn main() {
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
+						.value_name("PID")
 						.required(true)
 						.allow_hyphen_values(false),
 				),
@@ -138,6 +153,7 @@ async fn main() {
 				.arg(
 					Arg::with_name("pid")
 						.takes_value(true)
+						.value_name("PID")
 						.required(true)
 						.allow_hyphen_values(false),
 				),
@@ -159,7 +175,7 @@ async fn main() {
 
 	ctrlc::set_handler(|| task::block_on(on_exit())).expect("Error setting the CtrlC handler");
 
-	let config_path = Path::new(args.value_of("config").unwrap_or("./config.json"));
+	let config_path = Path::new(args.value_of("config").unwrap());
 
 	if !config_path.exists().await {
 		println!(
