@@ -885,6 +885,121 @@ async fn keep_host_alive(
 						node.delete_process_by_id(module_id);
 						response.send(Ok(())).unwrap();
 					}
+					GuillotineMessage::GetProcessLogs {
+						module_id,
+						response,
+					} => {
+						let node = node_runners
+							.values()
+							.find(|node| node.get_process_by_id(module_id).is_some());
+						if node.is_none() {
+							response
+								.send(Err(format!(
+									"No node found running the module with the ID {}",
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+						let node = node.unwrap();
+						if !node.connected {
+							response
+								.send(Err(format!(
+									"The node (with the name '{}') running the module {} is not connected",
+									node.name,
+									module_id
+								)))
+								.unwrap();
+							continue;
+						}
+
+						// Now stop the process
+						let result = juno_module
+							.call_function(
+								&format!(
+									"{}-node-{}.getProcessLogs",
+									constants::APP_NAME,
+									node.name
+								),
+								{
+									let mut map = HashMap::new();
+									map.insert(
+										String::from("moduleId"),
+										Value::Number(Number::PosInt(module_id)),
+									);
+									map
+								},
+							)
+							.await;
+						if let Err(error) = result {
+							response
+								.send(Err(format!("Error sending the log command: {}", error)))
+								.unwrap();
+							continue;
+						}
+						let result = result.unwrap();
+						let mut result = if let Value::Object(args) = result {
+							args
+						} else {
+							response
+								.send(Err(format!(
+									"Response of log command wasn't an object. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+
+						let success = if let Some(Value::Bool(success)) = result.remove("success") {
+							success
+						} else {
+							response
+								.send(Err(format!(
+									"Success key of log command wasn't a bool. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						if !success {
+							response
+								.send(Err(
+									if let Some(Value::String(error)) = result.remove("error") {
+										format!("Error getting logs of process: {}", error)
+									} else {
+										format!(
+											"Error key of log command wasn't a string. Got: {:#?}",
+											result
+										)
+									},
+								))
+								.unwrap();
+							continue;
+						}
+						let stdout = if let Some(Value::String(stdout)) = result.remove("stdout") {
+							stdout
+						} else {
+							response
+								.send(Err(format!(
+									"Stdout key of log command wasn't a string. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						let stderr = if let Some(Value::String(stderr)) = result.remove("stderr") {
+							stderr
+						} else {
+							response
+								.send(Err(format!(
+									"Stderr key of log command wasn't a string. Got: {:#?}",
+									result
+								)))
+								.unwrap();
+							continue;
+						};
+						response.send(Ok((stdout, stderr))).unwrap();
+					}
 				}
 			}
 		}

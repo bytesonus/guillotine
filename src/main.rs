@@ -203,6 +203,7 @@ async fn main() {
 		// Cli stuff
 		("add", Some(args)) => cli::add_process(config, args).await,
 		("delete", Some(args)) => cli::delete_process(config, args).await,
+		("logs", Some(args)) => cli::get_process_logs(config, args).await,
 		("info", Some(args)) => cli::get_info(config, args).await,
 		("list-all-processes", Some(_)) => cli::list_all_processes(config).await,
 		("list-modules", Some(_)) => cli::list_modules(config).await,

@@ -1,6 +1,7 @@
 mod add_process;
 mod delete_process;
 mod get_info;
+mod get_process_logs;
 mod list_all_processes;
 mod list_modules;
 mod list_nodes;
@@ -12,6 +13,7 @@ mod stop_process;
 pub use add_process::add_process;
 pub use delete_process::delete_process;
 pub use get_info::get_info;
+pub use get_process_logs::get_process_logs;
 pub use list_all_processes::list_all_processes;
 pub use list_modules::list_modules;
 pub use list_nodes::list_nodes;

@@ -110,6 +110,11 @@ pub async fn setup_host_module(
 		.unwrap();
 
 	module
+		.declare_function("getProcessLogs", get_process_logs)
+		.await
+		.unwrap();
+
+	module
 		.register_hook("juno.moduleDeactivated", module_deactivated)
 		.await
 		.unwrap();
@@ -1092,6 +1097,52 @@ fn delete_process(mut args: HashMap<String, Value>) -> Value {
 			Value::Object({
 				let mut map = HashMap::new();
 				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn get_process_logs(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let message_sender = MESSAGE_SENDER.read().await;
+		if message_sender.is_none() {
+			drop(message_sender);
+			return generate_error_response("Host module is not initialized yet");
+		}
+
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(String, String), String>>();
+		message_sender
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::GetProcessLogs {
+				module_id,
+				response: sender,
+			})
+			.await
+			.unwrap();
+		drop(message_sender);
+
+		let result = receiver.await.unwrap();
+		if let Ok((stdout, stderr)) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map.insert(String::from("stdout"), Value::String(stdout));
+				map.insert(String::from("stderr"), Value::String(stderr));
 				map
 			})
 		} else {

@@ -405,6 +405,44 @@ async fn keep_node_alive(config: RunnerConfig, auto_start_processes: Vec<Process
 						ids_to_processes.remove(&module_id);
 						response.send(Ok(())).unwrap();
 					}
+					GuillotineMessage::GetProcessLogs {
+						module_id,
+						response,
+					} => {
+						if !ids_to_processes.contains_key(&module_id) {
+							response.send(Err(String::from("Could not find any process with that moduleId in this runner. Is this stale data?"))).unwrap();
+							continue;
+						}
+
+						let process = ids_to_processes.get(&module_id).unwrap();
+						if process.log_dir.is_none() {
+							response.send(Err(String::from("The process's output isn't being logged. Is the log directory mentioned in the runner config?"))).unwrap();
+							continue;
+						}
+						let stdout = fs::read_to_string(
+							Path::new(process.log_dir.as_ref().unwrap()).join("output.log"),
+						)
+						.await;
+						if let Err(err) = stdout {
+							response
+								.send(Err(format!("Error while reading stdout logs: {}", err)))
+								.unwrap();
+							continue;
+						}
+						let stderr = fs::read_to_string(
+							Path::new(process.log_dir.as_ref().unwrap()).join("error.log"),
+						)
+						.await;
+						if let Err(err) = stderr {
+							response
+								.send(Err(format!("Error while reading stderr logs: {}", err)))
+								.unwrap();
+							continue;
+						}
+						response
+							.send(Ok((stdout.unwrap(), stderr.unwrap())))
+							.unwrap();
+					}
 					msg => panic!("Unhandled guillotine message: {:#?}", msg),
 				}
 			}

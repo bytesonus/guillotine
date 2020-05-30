@@ -74,6 +74,11 @@ pub async fn setup_module(
 		.await
 		.unwrap();
 
+	juno_module
+		.declare_function("getLogs", get_logs)
+		.await
+		.unwrap();
+
 	// Register node here
 	let response = juno_module
 		.call_function(&format!("{}.registerNode", constants::APP_NAME), {
@@ -413,6 +418,47 @@ fn delete_process(mut args: HashMap<String, Value>) -> Value {
 			Value::Object({
 				let mut map = HashMap::new();
 				map.insert(String::from("success"), Value::Bool(true));
+				map
+			})
+		} else {
+			generate_error_response(&result.unwrap_err())
+		}
+	})
+}
+
+fn get_logs(mut args: HashMap<String, Value>) -> Value {
+	task::block_on(async {
+		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
+			match module_id {
+				Number::PosInt(module_id) => module_id,
+				Number::NegInt(module_id) => module_id as u64,
+				Number::Float(module_id) => module_id as u64,
+			}
+		} else {
+			return generate_error_response("Module ID is not a number");
+		};
+
+		let (sender, receiver) = channel::<Result<(String, String), String>>();
+		MESSAGE_SENDER
+			.read()
+			.await
+			.as_ref()
+			.unwrap()
+			.clone()
+			.send(GuillotineMessage::GetProcessLogs {
+				module_id,
+				response: sender,
+			})
+			.await
+			.unwrap();
+
+		let result = receiver.await.unwrap();
+		if let Ok((stdout, stderr)) = result {
+			Value::Object({
+				let mut map = HashMap::new();
+				map.insert(String::from("success"), Value::Bool(true));
+				map.insert(String::from("stdout"), Value::String(stdout));
+				map.insert(String::from("stderr"), Value::String(stderr));
 				map
 			})
 		} else {
