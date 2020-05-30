@@ -73,7 +73,7 @@ pub enum GuillotineMessage {
 	GetProcessLogs {
 		module_id: u64,
 		response: Sender<Result<(String, String), String>>, // (stdout, stderr)
-	}
+	},
 }
 // TODO ADD:
 // ReloadConfig,
