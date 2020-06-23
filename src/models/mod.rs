@@ -1,10 +1,10 @@
-mod cli_messages;
-mod config_types;
+mod config_data;
+mod guillotine_message;
 
 pub mod parser;
 
-pub use cli_messages::GuillotineMessage;
-pub use config_types::{
-	EnvRequirements, GuillotineConfig, GuillotineModuleConfig, GuillotinePerEnvConfig,
-	GuillotineSpecificConfig, ModuleRunnerConfig, ModuleRunningStatus,
+pub use config_data::{
+	ConfigTarget, GuillotineConfig, GuillotinePerEnvConfig, HostConfig, ModuleConfig,
+	ModuleRunnerConfig, ModuleRunningStatus, NodeConfig, RunnerConfig,
 };
+pub use guillotine_message::GuillotineMessage;

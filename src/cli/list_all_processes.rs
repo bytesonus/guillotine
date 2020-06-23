@@ -9,7 +9,7 @@ use cli_table::{
 use juno::models::Value;
 use std::collections::HashMap;
 
-pub async fn list_modules(config: RunnerConfig) {
+pub async fn list_all_processes(config: RunnerConfig) {
 	let result = get_juno_module_from_config(&config);
 	let mut module = if let Ok(module) = result {
 		module
@@ -32,19 +32,18 @@ pub async fn list_modules(config: RunnerConfig) {
 		.unwrap();
 	let response = module
 		.call_function(
-			&format!("{}.listModules", constants::APP_NAME),
+			&format!("{}.listAllProcesses", constants::APP_NAME),
 			HashMap::new(),
 		)
 		.await
 		.unwrap();
-
-	let modules = if let Value::Object(mut map) = response {
+	let processes = if let Value::Object(mut map) = response {
 		if let Some(Value::Bool(success)) = map.remove("success") {
 			if success {
-				if let Some(Value::Array(modules)) = map.remove("modules") {
-					modules
+				if let Some(Value::Array(processes)) = map.remove("processes") {
+					processes
 				} else {
-					logger::error("Invalid nodes key in response");
+					logger::error("Invalid processes key in response");
 					return;
 				}
 			} else {
@@ -81,35 +80,109 @@ pub async fn list_modules(config: RunnerConfig) {
 
 	// Now make the data
 	let mut table_data = vec![Row::new(vec![
-		Cell::new("Module ID", header_format),
-		Cell::new("Version", header_format),
+		Cell::new("ID", header_format),
+		Cell::new("Name", header_format),
+		Cell::new("Node", header_format),
 		Cell::new("Status", header_format),
+		Cell::new("Restarts", header_format),
+		Cell::new("Uptime", header_format),
+		Cell::new("Crashes", header_format),
+		Cell::new("Created at", header_format),
 	])];
-	for process in modules.iter() {
+	for process in processes.into_iter() {
 		let process = process.as_object().unwrap();
 		table_data.push(Row::new(vec![
 			Cell::new(
-				process.get("moduleId").unwrap().as_string().unwrap(),
+				&format!(
+					"{}",
+					process
+						.get("id")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap()
+				),
 				Default::default(),
 			),
 			Cell::new(
-				process.get("version").unwrap().as_string().unwrap(),
+				process.get("name").unwrap().as_string().unwrap(),
 				Default::default(),
 			),
-			match process.get("registered").unwrap().as_bool().unwrap() {
-				true => Cell::new(
-					"active",
+			Cell::new(
+				process.get("node").unwrap().as_string().unwrap(),
+				Default::default(),
+			),
+			match process.get("status").unwrap().as_string().unwrap().as_ref() {
+				"running" => Cell::new(
+					"running",
 					CellFormat::builder()
 						.foreground_color(Some(Color::Green))
 						.build(),
 				),
-				false => Cell::new(
-					"inactive",
+				"offline" => Cell::new(
+					"offline",
+					CellFormat::builder()
+						.foreground_color(Some(Color::Red))
+						.build(),
+				),
+				_ => Cell::new(
+					"unknown",
 					CellFormat::builder()
 						.foreground_color(Some(Color::Cyan))
 						.build(),
 				),
 			},
+			Cell::new(
+				&format!(
+					"{}",
+					process
+						.get("restarts")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap()
+				),
+				Default::default(),
+			),
+			Cell::new(
+				&super::get_duration(
+					process
+						.get("uptime")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap(),
+				),
+				Default::default(),
+			),
+			Cell::new(
+				&format!(
+					"{}",
+					process
+						.get("crashes")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap()
+				),
+				Default::default(),
+			),
+			Cell::new(
+				&super::get_date_time(
+					process
+						.get("createdAt")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap(),
+				),
+				Default::default(),
+			),
 		]));
 	}
 	let table = Table::new(table_data, table_format);

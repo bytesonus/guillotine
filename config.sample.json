@@ -1,42 +1,55 @@
 {
-	"version": "1.0.0",
+	"version": 1,
 	"configs": [
 		{
-			"env": {
-				"target_family": "windows",
-				"target_os": "windows",
-				"target_arch": "x86_64",
-				"target_endian": "little"
+			"target": {
+				"family": "windows",
+				"os": "windows",
+				"arch": "x86_64",
+				"endian": "little"
 			},
 			"config": {
-				"juno": {
+				"name": "runner1",
+				"logs": "./logs",
+				"host": {
 					"path": "./service/juno",
 					"connection_type": "inet_socket",
 					"port": 2203,
-					"bind-addr": "127.0.0.1"
-				},
-				"modules": {
-					"path": "./modules",
-					"logs": "./logs"
+					"bind_addr": "127.0.0.1"
 				}
 			}
 		},
 		{
-			"env": {
-				"target_family": "unix",
-				"target_os": "linux",
-				"target_arch": "x86_64",
-				"target_endian": "little"
+			"target": {
+				"family": "unix",
+				"os": "linux",
+				"arch": "x86_64",
+				"endian": "little"
 			},
 			"config": {
-				"juno": {
+				"name": "runner1",
+				"logs": "./logs",
+				"host": {
 					"path": "./service/juno",
 					"connection_type": "unix_socket",
 					"socket_path": "./juno.sock"
 				},
 				"modules": {
-					"path": "./modules",
-					"logs": "./logs"
+					"directory": "./modules"
+				}
+			}
+		},
+		{
+			"config": {
+				"name": "runner2",
+				"logs": "./logs",
+				"node": {
+					"connection_type": "inet_socket",
+					"port": 2203,
+					"ip": "10.0.0.1"
+				},
+				"modules": {
+					"directory": "./modules"
 				}
 			}
 		}

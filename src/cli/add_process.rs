@@ -10,7 +10,7 @@ use cli_table::{
 use juno::models::Value;
 use std::collections::HashMap;
 
-pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
+pub async fn add_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 	let result = get_juno_module_from_config(&config);
 	let mut module = if let Ok(module) = result {
 		module
@@ -28,7 +28,14 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 		logger::error("No node supplied!");
 		return;
 	}
-	let node = node.unwrap();
+	let node = node.unwrap().to_string();
+
+	let path = args.value_of("path");
+	if path.is_none() {
+		logger::error("No path supplied!");
+		return;
+	}
+	let path = path.unwrap().to_string();
 
 	module
 		.initialize(
@@ -38,12 +45,38 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 		)
 		.await
 		.unwrap();
+
 	let response = module
-		.call_function(&format!("{}.listProcesses", constants::APP_NAME), {
-			let mut map = HashMap::new();
-			map.insert(String::from("node"), Value::String(String::from(node)));
-			map
-		})
+		.call_function(
+			&format!("{}-node-{}.addProcess", constants::APP_NAME, node),
+			{
+				let mut map = HashMap::new();
+				//map.insert(String::from("node"), Value::String(node.clone()));
+				map.insert(String::from("path"), Value::String(path));
+				map
+			},
+		)
+		.await
+		.unwrap();
+
+	if !response.is_object() {
+		logger::error(&format!("Expected object response. Got {:?}", response));
+		return;
+	}
+	let response = response.as_object().unwrap();
+
+	let success = response.get("success").unwrap();
+	if !success.as_bool().unwrap() {
+		let error = response.get("error").unwrap().as_string().unwrap();
+		logger::error(&format!("Error adding process: {}", error));
+		return;
+	}
+
+	let response = module
+		.call_function(
+			&format!("{}.listAllProcesses", constants::APP_NAME),
+			HashMap::new(),
+		)
 		.await
 		.unwrap();
 	let processes = if let Value::Object(mut map) = response {
@@ -131,12 +164,6 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 				),
 				"offline" => Cell::new(
 					"offline",
-					CellFormat::builder()
-						.foreground_color(Some(Color::Blue))
-						.build(),
-				),
-				"stopped" => Cell::new(
-					"stopped",
 					CellFormat::builder()
 						.foreground_color(Some(Color::Red))
 						.build(),

@@ -2,34 +2,37 @@ use serde_derive::Deserialize;
 
 #[derive(Deserialize)]
 pub struct GuillotineConfig {
-	pub version: String,
+	pub version: u64,
 	pub configs: Option<Vec<GuillotinePerEnvConfig>>,
-	pub config: Option<GuillotineSpecificConfig>,
+	pub config: Option<RunnerConfig>,
 }
 
 #[derive(Deserialize)]
 pub struct GuillotinePerEnvConfig {
-	pub env: EnvRequirements,
-	pub config: GuillotineSpecificConfig,
+	pub target: Option<ConfigTarget>,
+	pub config: RunnerConfig,
 }
 
 #[derive(Deserialize)]
-pub struct EnvRequirements {
-	pub target_family: Option<String>,
-	pub target_os: Option<String>,
-	pub target_arch: Option<String>,
-	pub target_endian: Option<String>,
+pub struct ConfigTarget {
+	pub family: Option<String>,
+	pub os: Option<String>,
+	pub arch: Option<String>,
+	pub endian: Option<String>,
 }
 
 // Config specific to this environment
-#[derive(Deserialize, Clone)]
-pub struct GuillotineSpecificConfig {
-	pub juno: JunoConfig,
-	pub modules: Option<GuillotineModuleConfig>,
+#[derive(Deserialize, Clone, Debug)]
+pub struct RunnerConfig {
+	pub name: Option<String>,
+	pub logs: Option<String>,
+	pub host: Option<HostConfig>,
+	pub node: Option<NodeConfig>,
+	pub modules: Option<ModuleConfig>,
 }
 
-#[derive(Deserialize, Clone)]
-pub struct JunoConfig {
+#[derive(Deserialize, Clone, Debug)]
+pub struct HostConfig {
 	pub path: String,
 	pub connection_type: String,
 	pub port: Option<u16>,
@@ -37,15 +40,23 @@ pub struct JunoConfig {
 	pub socket_path: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
-pub struct GuillotineModuleConfig {
-	pub path: String,
-	pub logs: Option<String>,
+#[derive(Deserialize, Clone, Debug)]
+pub struct NodeConfig {
+	pub connection_type: String,
+	pub port: Option<u16>,
+	pub ip: Option<String>,
+	pub socket_path: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
+pub struct ModuleConfig {
+	pub directory: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ModuleRunningStatus {
 	Running,
+	Stopped,
 	Offline,
 }
 

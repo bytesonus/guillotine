@@ -1,4 +1,4 @@
-use crate::{logger, models::GuillotineSpecificConfig, utils::constants};
+use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, utils::constants};
 
 use clap::ArgMatches;
 use cli_table::{
@@ -7,20 +7,20 @@ use cli_table::{
 	},
 	Cell, Row, Table,
 };
-use juno::{
-	models::{Number, Value},
-	JunoModule,
-};
+use juno::models::{Number, Value};
 use std::collections::HashMap;
 
-pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches<'_>) {
-	let mut module = if config.juno.connection_type == "unix_socket" {
-		let socket_path = config.juno.socket_path.as_ref().unwrap();
-		JunoModule::from_unix_socket(&socket_path)
+pub async fn restart_process(config: RunnerConfig, args: &ArgMatches<'_>) {
+	let result = get_juno_module_from_config(&config);
+	let mut module = if let Ok(module) = result {
+		module
 	} else {
-		let port = config.juno.port.as_ref().unwrap();
-		let bind_addr = config.juno.bind_addr.as_ref().unwrap();
-		JunoModule::from_inet_socket(&bind_addr, *port)
+		logger::error(if let Err(err) = result {
+			err
+		} else {
+			return;
+		});
+		return;
 	};
 	let pid = args.value_of("pid");
 	if pid.is_none() {
@@ -43,26 +43,14 @@ pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches
 		.await
 		.unwrap();
 
-	let processes = module
-		.call_function(
-			&format!("{}.listProcesses", constants::APP_NAME),
-			HashMap::new(),
-		)
-		.await
-		.unwrap();
-
 	let response = module
 		.call_function(&format!("{}.restartProcess", constants::APP_NAME), {
 			let mut map = HashMap::new();
-			map.insert(
-				String::from("processId"),
-				Value::Number(Number::PosInt(pid)),
-			);
+			map.insert(String::from("moduleId"), Value::Number(Number::PosInt(pid)));
 			map
 		})
 		.await
 		.unwrap();
-	drop(module);
 
 	if !response.is_object() {
 		logger::error(&format!("Expected object response. Got {:?}", response));
@@ -76,11 +64,35 @@ pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches
 		logger::error(&format!("Error restarting process: {}", error));
 		return;
 	}
-	if !processes.is_array() {
-		logger::error(&format!("Expected array response. Got {:?}", processes));
+
+	let response = module
+		.call_function(
+			&format!("{}.listAllProcesses", constants::APP_NAME),
+			HashMap::new(),
+		)
+		.await
+		.unwrap();
+	let processes = if let Value::Object(mut map) = response {
+		if let Some(Value::Bool(success)) = map.remove("success") {
+			if success {
+				if let Some(Value::Array(processes)) = map.remove("processes") {
+					processes
+				} else {
+					logger::error("Invalid processes key in response");
+					return;
+				}
+			} else {
+				logger::error(map.remove("error").unwrap().as_string().unwrap());
+				return;
+			}
+		} else {
+			logger::error("Invalid success key in response");
+			return;
+		}
+	} else {
+		logger::error(&format!("Expected object response. Got: {:#?}", response));
 		return;
-	}
-	let processes = processes.as_array().unwrap();
+	};
 
 	// Make the looks first
 	let header_format = CellFormat::builder()
@@ -105,13 +117,14 @@ pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches
 	let mut table_data = vec![Row::new(vec![
 		Cell::new("ID", header_format),
 		Cell::new("Name", header_format),
+		Cell::new("Node", header_format),
 		Cell::new("Status", header_format),
 		Cell::new("Restarts", header_format),
 		Cell::new("Uptime", header_format),
 		Cell::new("Crashes", header_format),
 		Cell::new("Created at", header_format),
 	])];
-	for process in processes.iter() {
+	for process in processes.into_iter() {
 		let process = process.as_object().unwrap();
 		table_data.push(Row::new(vec![
 			Cell::new(
@@ -129,6 +142,10 @@ pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches
 			),
 			Cell::new(
 				process.get("name").unwrap().as_string().unwrap(),
+				Default::default(),
+			),
+			Cell::new(
+				process.get("node").unwrap().as_string().unwrap(),
 				Default::default(),
 			),
 			match process.get("status").unwrap().as_string().unwrap().as_ref() {
@@ -154,31 +171,13 @@ pub async fn restart_process(config: GuillotineSpecificConfig, args: &ArgMatches
 			Cell::new(
 				&format!(
 					"{}",
-					if pid
-						== process
-							.get("id")
-							.unwrap()
-							.as_number()
-							.unwrap()
-							.as_i64()
-							.unwrap() as u64
-					{
-						process
-							.get("restarts")
-							.unwrap()
-							.as_number()
-							.unwrap()
-							.as_i64()
-							.unwrap() + 1
-					} else {
-						process
-							.get("restarts")
-							.unwrap()
-							.as_number()
-							.unwrap()
-							.as_i64()
-							.unwrap()
-					}
+					process
+						.get("restarts")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap()
 				),
 				Default::default(),
 			),

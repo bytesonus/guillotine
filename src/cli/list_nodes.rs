@@ -1,5 +1,8 @@
-use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, utils::constants};
-
+use crate::{
+	cli::get_juno_module_from_config,
+	models::RunnerConfig,
+	utils::{constants, logger},
+};
 use cli_table::{
 	format::{
 		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
@@ -9,7 +12,7 @@ use cli_table::{
 use juno::models::Value;
 use std::collections::HashMap;
 
-pub async fn list_modules(config: RunnerConfig) {
+pub async fn list_nodes(config: RunnerConfig) {
 	let result = get_juno_module_from_config(&config);
 	let mut module = if let Ok(module) = result {
 		module
@@ -32,17 +35,17 @@ pub async fn list_modules(config: RunnerConfig) {
 		.unwrap();
 	let response = module
 		.call_function(
-			&format!("{}.listModules", constants::APP_NAME),
+			&format!("{}.listNodes", constants::APP_NAME),
 			HashMap::new(),
 		)
 		.await
 		.unwrap();
 
-	let modules = if let Value::Object(mut map) = response {
+	let nodes = if let Value::Object(mut map) = response {
 		if let Some(Value::Bool(success)) = map.remove("success") {
 			if success {
-				if let Some(Value::Array(modules)) = map.remove("modules") {
-					modules
+				if let Some(Value::Array(nodes)) = map.remove("nodes") {
+					nodes
 				} else {
 					logger::error("Invalid nodes key in response");
 					return;
@@ -81,35 +84,43 @@ pub async fn list_modules(config: RunnerConfig) {
 
 	// Now make the data
 	let mut table_data = vec![Row::new(vec![
-		Cell::new("Module ID", header_format),
-		Cell::new("Version", header_format),
-		Cell::new("Status", header_format),
+		Cell::new("Name", header_format),
+		Cell::new("Connected", header_format),
+		Cell::new("Modules", header_format),
 	])];
-	for process in modules.iter() {
-		let process = process.as_object().unwrap();
+	for node in nodes.into_iter() {
+		let node = node.as_object().unwrap();
 		table_data.push(Row::new(vec![
 			Cell::new(
-				process.get("moduleId").unwrap().as_string().unwrap(),
+				node.get("name").unwrap().as_string().unwrap(),
 				Default::default(),
 			),
-			Cell::new(
-				process.get("version").unwrap().as_string().unwrap(),
-				Default::default(),
-			),
-			match process.get("registered").unwrap().as_bool().unwrap() {
+			match node.get("connected").unwrap().as_bool().unwrap() {
 				true => Cell::new(
-					"active",
+					"online",
 					CellFormat::builder()
 						.foreground_color(Some(Color::Green))
 						.build(),
 				),
 				false => Cell::new(
-					"inactive",
+					"offline",
 					CellFormat::builder()
-						.foreground_color(Some(Color::Cyan))
+						.foreground_color(Some(Color::Red))
 						.build(),
 				),
 			},
+			Cell::new(
+				&format!(
+					"{}",
+					node.get("modules")
+						.unwrap()
+						.as_number()
+						.unwrap()
+						.as_i64()
+						.unwrap()
+				),
+				Default::default(),
+			),
 		]));
 	}
 	let table = Table::new(table_data, table_format);

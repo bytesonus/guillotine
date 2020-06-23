@@ -1,30 +1,26 @@
-use crate::{logger, models::GuillotineSpecificConfig, utils::constants};
+use crate::{cli::get_juno_module_from_config, logger, models::RunnerConfig, utils::constants};
 
-use clap::ArgMatches;
 use cli_table::{
 	format::{
 		Align, Border, CellFormat, Color, HorizontalLine, Separator, TableFormat, VerticalLine,
 	},
 	Cell, Row, Table,
 };
-use juno::{models::Value, JunoModule};
+use juno::models::Value;
 use std::collections::HashMap;
 
-pub async fn get_module_info(config: GuillotineSpecificConfig, args: &ArgMatches<'_>) {
-	let mut module = if config.juno.connection_type == "unix_socket" {
-		let socket_path = config.juno.socket_path.as_ref().unwrap();
-		JunoModule::from_unix_socket(&socket_path)
+pub async fn get_module_info(config: RunnerConfig, module_id: &str) {
+	let result = get_juno_module_from_config(&config);
+	let mut module = if let Ok(module) = result {
+		module
 	} else {
-		let port = config.juno.port.as_ref().unwrap();
-		let bind_addr = config.juno.bind_addr.as_ref().unwrap();
-		JunoModule::from_inet_socket(&bind_addr, *port)
-	};
-	let module_id = args.value_of("pid");
-	if module_id.is_none() {
-		logger::error("No pid supplied!");
+		logger::error(if let Err(err) = result {
+			err
+		} else {
+			return;
+		});
 		return;
-	}
-	let module_id = module_id.unwrap();
+	};
 
 	module
 		.initialize(
@@ -75,8 +71,7 @@ pub async fn get_module_info(config: GuillotineSpecificConfig, args: &ArgMatches
 	);
 
 	// Now make the data
-	let mut table_data = vec![];
-	table_data.extend(vec![
+	let table_data = vec![
 		Row::new(vec![
 			Cell::new("Module ID", header_format),
 			Cell::new(
@@ -159,7 +154,7 @@ pub async fn get_module_info(config: GuillotineSpecificConfig, args: &ArgMatches
 				Default::default(),
 			),
 		]),
-	]);
+	];
 	let table = Table::new(table_data, table_format);
 
 	// Print it out

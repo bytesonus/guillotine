@@ -1,108 +1,95 @@
-use crate::{
-	logger,
-	models::{ModuleRunnerConfig, ModuleRunningStatus},
-};
-use async_std::task;
+use crate::{models::ModuleRunnerConfig, utils::logger};
 use std::{
 	fs::OpenOptions,
-	path::Path,
 	process::{Child, Command, Stdio},
 	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-#[derive(Debug)]
-pub struct ProcessRunner {
-	process: Option<Child>,
+use async_std::{path::Path, task};
+
+pub struct Process {
+	pub process: Option<Child>,
+	pub runner_config: ModuleRunnerConfig,
 	pub log_dir: Option<String>,
 	pub working_dir: String,
-	pub module_id: u64,
-	pub config: ModuleRunnerConfig,
-	pub status: ModuleRunningStatus,
-	pub restarts: i64,
-	pub uptime: u64,
 	pub last_started_at: u64,
-	pub crashes: u64,
 	pub created_at: u64,
+	pub start_scheduled_at: Option<u64>,
+	pub has_been_crashing: bool,
+	pub should_be_running: bool,
 }
 
-impl ProcessRunner {
+impl Process {
 	pub fn new(
-		module_id: u64,
-		config: ModuleRunnerConfig,
+		runner_config: ModuleRunnerConfig,
 		log_dir: Option<String>,
 		working_dir: String,
 	) -> Self {
-		ProcessRunner {
+		Process {
 			process: None,
+			runner_config,
 			log_dir,
 			working_dir,
-			module_id,
-			config,
-			status: ModuleRunningStatus::Offline,
-			restarts: -1,
-			uptime: 0,
 			last_started_at: 0,
-			crashes: 0,
 			created_at: get_current_time(),
+			start_scheduled_at: None,
+			has_been_crashing: false,
+			should_be_running: true,
 		}
 	}
 
-	pub fn is_process_running(&mut self) -> bool {
+	// returns (is_running, is_crashed)
+	pub fn is_process_running(&mut self) -> (bool, bool) {
 		if self.process.is_none() {
-			return false;
+			return (false, false);
 		}
 
 		let process = self.process.as_mut().unwrap();
 		match process.try_wait() {
 			Ok(Some(status)) => {
-				if !status.success() {
-					self.crashes += 1;
-					self.uptime = 0;
+				if status.success() {
+					(false, false)
+				} else {
+					(false, true)
 				}
-				self.status = ModuleRunningStatus::Offline;
-				false
 			} // Process has already exited
-			Ok(None) => {
-				self.status = ModuleRunningStatus::Running;
-				self.uptime = get_current_time() - self.last_started_at;
-				true
-			}
-			Err(_) => {
-				self.status = ModuleRunningStatus::Offline;
-				self.uptime = 0;
-				false
-			}
+			Ok(None) => (true, false),
+			Err(_) => (false, true),
 		}
 	}
 
-	pub async fn respawn(&mut self) {
-		logger::info(&format!("Respawning '{}'", self.config.name));
-		if self.process.is_some() && self.is_process_running() {
+	pub async fn wait_for_quit_or_kill_within(&mut self, wait_ms: u64) {
+		if self.process.is_some() && self.is_process_running().0 {
 			self.send_quit_signal();
 			let quit_time = get_current_time();
 			loop {
 				// Give the process some time to die.
 				task::sleep(Duration::from_millis(100)).await;
 				// If the process is not running, then break
-				if !self.is_process_running() {
+				if !self.is_process_running().0 {
 					break;
 				}
 				// If the processes is running, check if it's been given enough time.
-				if get_current_time() > quit_time + 1000 {
-					// It's been trying to quit for more than 1 second. Kill it and quit
-					logger::info(&format!("Killing process: {}", self.config.name));
-					self.process.as_mut().unwrap().kill().unwrap_or(());
+				if get_current_time() > quit_time + wait_ms {
+					// It's been trying to quit for more than the given duration. Kill it and quit
+					logger::info(&format!("Killing process: {}", self.runner_config.name));
+					self.kill();
 					break;
 				}
 			}
 		}
+	}
 
-		let child = if self.config.interpreter.is_none() {
-			let mut command = Command::new(&self.config.command);
+	pub async fn respawn(&mut self) {
+		logger::info(&format!("Respawning '{}'", self.runner_config.name));
+		self.wait_for_quit_or_kill_within(1000).await;
+
+		let child = if self.runner_config.interpreter.is_none() {
+			let mut command = Command::new(&self.runner_config.command);
 			command
 				.current_dir(&self.working_dir)
-				.args(self.config.args.as_ref().unwrap_or(&vec![]))
-				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone());
+				.args(self.runner_config.args.as_ref().unwrap_or(&vec![]))
+				.envs(self.runner_config.envs.as_ref().unwrap_or(&vec![]).clone());
 
 			if self.log_dir.is_some() {
 				let log_dir = self.log_dir.as_ref().unwrap();
@@ -134,12 +121,12 @@ impl ProcessRunner {
 
 			command.spawn()
 		} else {
-			let mut command = Command::new(self.config.interpreter.as_ref().unwrap());
+			let mut command = Command::new(self.runner_config.interpreter.as_ref().unwrap());
 			command
 				.current_dir(&self.working_dir)
-				.arg(&self.config.command)
-				.args(self.config.args.as_ref().unwrap_or(&vec![]))
-				.envs(self.config.envs.as_ref().unwrap_or(&vec![]).clone());
+				.arg(&self.runner_config.command)
+				.args(self.runner_config.args.as_ref().unwrap_or(&vec![]))
+				.envs(self.runner_config.envs.as_ref().unwrap_or(&vec![]).clone());
 
 			if self.log_dir.is_some() {
 				let log_dir = self.log_dir.as_ref().unwrap();
@@ -174,14 +161,11 @@ impl ProcessRunner {
 		if let Err(err) = child {
 			logger::error(&format!(
 				"Error spawing child process '{}': {}",
-				self.config.name, err
+				self.runner_config.name, err
 			));
 			return;
 		}
 		self.process = Some(child.unwrap());
-		self.restarts += 1;
-		self.uptime = 0;
-		self.status = ModuleRunningStatus::Running;
 		self.last_started_at = get_current_time();
 	}
 
@@ -204,7 +188,7 @@ impl ProcessRunner {
 		if result.is_err() {
 			logger::error(&format!(
 				"Error sending SIGINT to child process '{}': {}",
-				self.config.name,
+				self.runner_config.name,
 				result.unwrap_err()
 			));
 		}
@@ -241,22 +225,6 @@ impl ProcessRunner {
 		let result = self.process.as_mut().unwrap().kill();
 		if result.is_err() {
 			logger::error(&format!("Error killing process: {}", result.unwrap_err()));
-		}
-	}
-
-	pub fn copy(&self) -> Self {
-		ProcessRunner {
-			process: None,
-			log_dir: self.log_dir.clone(),
-			working_dir: self.working_dir.clone(),
-			module_id: self.module_id,
-			config: self.config.clone(),
-			status: self.status.clone(),
-			restarts: self.restarts,
-			uptime: self.uptime,
-			last_started_at: self.last_started_at,
-			crashes: self.crashes,
-			created_at: self.created_at,
 		}
 	}
 }

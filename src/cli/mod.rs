@@ -1,16 +1,54 @@
-mod get_module_info;
+mod add_process;
+mod delete_process;
+mod get_info;
+mod get_process_logs;
+mod list_all_processes;
 mod list_modules;
+mod list_nodes;
 mod list_processes;
 mod restart_process;
+mod start_process;
+mod stop_process;
 
-pub use get_module_info::get_module_info;
+pub use add_process::add_process;
+pub use delete_process::delete_process;
+pub use get_info::get_info;
+pub use get_process_logs::get_process_logs;
+pub use list_all_processes::list_all_processes;
 pub use list_modules::list_modules;
+pub use list_nodes::list_nodes;
 pub use list_processes::list_processes;
 pub use restart_process::restart_process;
+pub use start_process::start_process;
+pub use stop_process::stop_process;
 
+use crate::models::RunnerConfig;
 use chrono::{prelude::*, Utc};
+use juno::JunoModule;
 
-pub async fn on_exit() {}
+fn get_juno_module_from_config(config: &RunnerConfig) -> Result<JunoModule, &str> {
+	if let Some(host) = &config.host {
+		if host.connection_type == "unix_socket" {
+			let socket_path = host.socket_path.as_ref().unwrap();
+			Ok(JunoModule::from_unix_socket(socket_path))
+		} else {
+			let port = host.port.as_ref().unwrap();
+			let bind_addr = host.bind_addr.as_ref().unwrap();
+			Ok(JunoModule::from_inet_socket(&bind_addr, *port))
+		}
+	} else if let Some(node) = &config.node {
+		if node.connection_type == "unix_socket" {
+			let socket_path = node.socket_path.as_ref().unwrap();
+			Ok(JunoModule::from_unix_socket(socket_path))
+		} else {
+			let port = node.port.as_ref().unwrap();
+			let ip = node.ip.as_ref().unwrap();
+			Ok(JunoModule::from_inet_socket(&ip, *port))
+		}
+	} else {
+		Err("Neither host, nor node are set. Invalid configuration found")
+	}
+}
 
 fn get_date_time(timestamp: i64) -> String {
 	Utc.timestamp_millis(timestamp)

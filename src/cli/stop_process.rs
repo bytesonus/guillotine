@@ -7,10 +7,10 @@ use cli_table::{
 	},
 	Cell, Row, Table,
 };
-use juno::models::Value;
+use juno::models::{Number, Value};
 use std::collections::HashMap;
 
-pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
+pub async fn stop_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 	let result = get_juno_module_from_config(&config);
 	let mut module = if let Ok(module) = result {
 		module
@@ -22,13 +22,17 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 		});
 		return;
 	};
-
-	let node = args.value_of("node");
-	if node.is_none() {
-		logger::error("No node supplied!");
+	let pid = args.value_of("pid");
+	if pid.is_none() {
+		logger::error("No pid supplied!");
 		return;
 	}
-	let node = node.unwrap();
+	let pid = pid.unwrap().parse::<u64>();
+	if pid.is_err() {
+		logger::error("Pid supplied is not a number!");
+		return;
+	}
+	let pid = pid.unwrap();
 
 	module
 		.initialize(
@@ -38,12 +42,34 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 		)
 		.await
 		.unwrap();
+
 	let response = module
-		.call_function(&format!("{}.listProcesses", constants::APP_NAME), {
+		.call_function(&format!("{}.startProcess", constants::APP_NAME), {
 			let mut map = HashMap::new();
-			map.insert(String::from("node"), Value::String(String::from(node)));
+			map.insert(String::from("moduleId"), Value::Number(Number::PosInt(pid)));
 			map
 		})
+		.await
+		.unwrap();
+
+	if !response.is_object() {
+		logger::error(&format!("Expected object response. Got {:?}", response));
+		return;
+	}
+	let response = response.as_object().unwrap();
+
+	let success = response.get("success").unwrap();
+	if !success.as_bool().unwrap() {
+		let error = response.get("error").unwrap().as_string().unwrap();
+		logger::error(&format!("Error restarting process: {}", error));
+		return;
+	}
+
+	let response = module
+		.call_function(
+			&format!("{}.listAllProcesses", constants::APP_NAME),
+			HashMap::new(),
+		)
 		.await
 		.unwrap();
 	let processes = if let Value::Object(mut map) = response {
@@ -131,12 +157,6 @@ pub async fn list_processes(config: RunnerConfig, args: &ArgMatches<'_>) {
 				),
 				"offline" => Cell::new(
 					"offline",
-					CellFormat::builder()
-						.foreground_color(Some(Color::Blue))
-						.build(),
-				),
-				"stopped" => Cell::new(
-					"stopped",
 					CellFormat::builder()
 						.foreground_color(Some(Color::Red))
 						.build(),
