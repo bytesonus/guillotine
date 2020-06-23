@@ -86,6 +86,18 @@ async fn main() {
 				),
 		)
 		.subcommand(
+			SubCommand::with_name("logs")
+				.alias("l")
+				.about("Get the logs for a module")
+				.arg(
+					Arg::with_name("pid")
+						.takes_value(true)
+						.value_name("PID")
+						.required(true)
+						.allow_hyphen_values(false),
+				),
+		)
+		.subcommand(
 			SubCommand::with_name("info")
 				.alias("i")
 				.about("Get information about a process / module")

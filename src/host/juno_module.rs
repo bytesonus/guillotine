@@ -37,7 +37,13 @@ pub async fn setup_host_module(
 	module
 		.initialize(constants::APP_NAME, constants::APP_VERSION, HashMap::new())
 		.await
-		.unwrap_or_else(|_| panic!("Could not initialize {} Juno Module", constants::APP_NAME));
+		.unwrap_or_else(|err| {
+			panic!(
+				"Could not initialize {} Juno Module: {}",
+				constants::APP_NAME,
+				err
+			)
+		});
 
 	module
 		.declare_function("registerNode", register_node)

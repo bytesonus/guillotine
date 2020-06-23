@@ -47,12 +47,15 @@ pub async fn add_process(config: RunnerConfig, args: &ArgMatches<'_>) {
 		.unwrap();
 
 	let response = module
-		.call_function(&format!("{}.addProcess", constants::APP_NAME), {
-			let mut map = HashMap::new();
-			map.insert(String::from("node"), Value::String(node.clone()));
-			map.insert(String::from("path"), Value::String(path));
-			map
-		})
+		.call_function(
+			&format!("{}-node-{}.addProcess", constants::APP_NAME, node),
+			{
+				let mut map = HashMap::new();
+				//map.insert(String::from("node"), Value::String(node.clone()));
+				map.insert(String::from("path"), Value::String(path));
+				map
+			},
+		)
 		.await
 		.unwrap();
 

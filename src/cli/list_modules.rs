@@ -6,6 +6,7 @@ use cli_table::{
 	},
 	Cell, Row, Table,
 };
+use juno::models::Value;
 use std::collections::HashMap;
 
 pub async fn list_modules(config: RunnerConfig) {
@@ -29,18 +30,35 @@ pub async fn list_modules(config: RunnerConfig) {
 		)
 		.await
 		.unwrap();
-	let modules = module
+	let response = module
 		.call_function(
 			&format!("{}.listModules", constants::APP_NAME),
 			HashMap::new(),
 		)
 		.await
 		.unwrap();
-	if !modules.is_array() {
-		logger::error(&format!("Expected array response. Got {:?}", modules));
+
+	let modules = if let Value::Object(mut map) = response {
+		if let Some(Value::Bool(success)) = map.remove("success") {
+			if success {
+				if let Some(Value::Array(modules)) = map.remove("modules") {
+					modules
+				} else {
+					logger::error("Invalid nodes key in response");
+					return;
+				}
+			} else {
+				logger::error(map.remove("error").unwrap().as_string().unwrap());
+				return;
+			}
+		} else {
+			logger::error("Invalid success key in response");
+			return;
+		}
+	} else {
+		logger::error(&format!("Expected object response. Got: {:#?}", response));
 		return;
-	}
-	let modules = modules.as_array().unwrap();
+	};
 
 	// Make the looks first
 	let header_format = CellFormat::builder()

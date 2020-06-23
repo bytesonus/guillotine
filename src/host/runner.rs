@@ -12,7 +12,7 @@ use std::{
 	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use async_std::{fs, net::TcpStream, path::Path, sync::Mutex};
+use async_std::{fs, net::TcpStream, path::Path, sync::RwLock};
 use future::Either;
 use futures::{
 	channel::{mpsc::unbounded, oneshot::Sender},
@@ -22,7 +22,7 @@ use futures_timer::Delay;
 use juno::models::{Number, Value};
 
 lazy_static! {
-	static ref CLOSE_FLAG: Mutex<bool> = Mutex::new(false);
+	static ref CLOSE_FLAG: RwLock<bool> = RwLock::new(false);
 }
 
 pub async fn run(mut config: RunnerConfig, initialized_sender: Sender<Option<()>>) {
@@ -98,7 +98,7 @@ pub async fn run(mut config: RunnerConfig, initialized_sender: Sender<Option<()>
 }
 
 pub async fn on_exit() {
-	*CLOSE_FLAG.lock().await = true;
+	*CLOSE_FLAG.write().await = true;
 }
 
 async fn keep_host_alive(
@@ -108,7 +108,7 @@ async fn keep_host_alive(
 ) {
 	// Spawn juno before spawing any modules
 	while !juno_process.is_process_running().0 {
-		if *CLOSE_FLAG.lock().await {
+		if *CLOSE_FLAG.read().await {
 			logger::info("Exit command received. Exiting");
 			initialized_sender.send(None).unwrap();
 			return;
@@ -130,11 +130,15 @@ async fn keep_host_alive(
 	let mut timer_future = Delay::new(Duration::from_millis(100));
 	let mut command_future = command_receiver.next();
 	loop {
+		if *CLOSE_FLAG.read().await {
+			logger::info("Exit command received. Exiting");
+			break;
+		}
 		let selection = future::select(timer_future, command_future).await;
 
 		match selection {
 			Either::Left((_, next_command_future)) => {
-				if *CLOSE_FLAG.lock().await {
+				if *CLOSE_FLAG.read().await {
 					logger::info("Exit command received. Exiting");
 					break;
 				}
@@ -338,7 +342,7 @@ async fn keep_host_alive(
 							response
 								.send(Err(format!("Expected array response. Got {:?}", modules)))
 								.unwrap();
-							return;
+							continue;
 						};
 						let modules = modules
 							.into_iter()
@@ -539,11 +543,7 @@ async fn keep_host_alive(
 
 						let result = juno_module
 							.call_function(
-								&format!(
-									"{}-node-{}.addProcess",
-									constants::APP_AUTHORS,
-									node_name
-								),
+								&format!("{}-node-{}.addProcess", constants::APP_NAME, node_name),
 								{
 									let mut map = HashMap::new();
 									map.insert(String::from("path"), Value::String(path));

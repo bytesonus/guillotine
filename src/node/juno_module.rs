@@ -75,7 +75,7 @@ pub async fn setup_module(
 		.unwrap();
 
 	juno_module
-		.declare_function("getLogs", get_logs)
+		.declare_function("getProcessLogs", get_process_logs)
 		.await
 		.unwrap();
 
@@ -426,7 +426,7 @@ fn delete_process(mut args: HashMap<String, Value>) -> Value {
 	})
 }
 
-fn get_logs(mut args: HashMap<String, Value>) -> Value {
+fn get_process_logs(mut args: HashMap<String, Value>) -> Value {
 	task::block_on(async {
 		let module_id = if let Some(Value::Number(module_id)) = args.remove("moduleId") {
 			match module_id {
