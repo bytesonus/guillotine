@@ -14,6 +14,8 @@ extern crate futures_timer;
 extern crate juno;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate async_trait;
 
 #[cfg(target_family = "unix")]
 extern crate nix;
@@ -29,11 +31,16 @@ mod runner;
 mod utils;
 
 use models::parser;
-use utils::{constants, logger};
+use utils::{constants, exitable::Exitable, logger};
 
-use async_std::{fs, path::Path, task};
+use async_std::{fs, path::Path, sync::Mutex, task};
 use clap::{App, Arg, SubCommand};
-use futures::future;
+use futures::channel::oneshot::{channel, Receiver, Sender};
+
+lazy_static! {
+	static ref CLOSE_SENDER: Mutex<Option<Sender<()>>> = Mutex::new(None);
+	static ref CLOSE_RECEIVER: Mutex<Option<Receiver<()>>> = Mutex::new(None);
+}
 
 #[async_std::main]
 async fn main() {
@@ -185,6 +192,9 @@ async fn main() {
 		)
 		.get_matches();
 
+	let (sender, receiver) = channel::<()>();
+	CLOSE_SENDER.lock().await.replace(sender);
+	CLOSE_RECEIVER.lock().await.replace(receiver);
 	ctrlc::set_handler(|| task::block_on(on_exit())).expect("Error setting the CtrlC handler");
 
 	let config_path = Path::new(args.value_of("config").unwrap());
@@ -213,17 +223,17 @@ async fn main() {
 		("run", Some(_)) | ("", _) => runner::run(config).await,
 
 		// Cli stuff
-		("add", Some(args)) => cli::add_process(config, args).await,
-		("delete", Some(args)) => cli::delete_process(config, args).await,
-		("logs", Some(args)) => cli::get_process_logs(config, args).await,
-		("info", Some(args)) => cli::get_info(config, args).await,
-		("list-all-processes", Some(_)) => cli::list_all_processes(config).await,
-		("list-modules", Some(_)) => cli::list_modules(config).await,
-		("list-nodes", Some(_)) => cli::list_nodes(config).await,
-		("list-processes", Some(args)) => cli::list_processes(config, args).await,
-		("restart", Some(args)) => cli::restart_process(config, args).await,
-		("start", Some(args)) => cli::start_process(config, args).await,
-		("stop", Some(args)) => cli::stop_process(config, args).await,
+		("add", Some(args)) => cli::add_process(config, args).exitable().await,
+		("delete", Some(args)) => cli::delete_process(config, args).exitable().await,
+		("logs", Some(args)) => cli::get_process_logs(config, args).exitable().await,
+		("info", Some(args)) => cli::get_info(config, args).exitable().await,
+		("list-all-processes", Some(_)) => cli::list_all_processes(config).exitable().await,
+		("list-modules", Some(_)) => cli::list_modules(config).exitable().await,
+		("list-nodes", Some(_)) => cli::list_nodes(config).exitable().await,
+		("list-processes", Some(args)) => cli::list_processes(config, args).exitable().await,
+		("restart", Some(args)) => cli::restart_process(config, args).exitable().await,
+		("start", Some(args)) => cli::start_process(config, args).exitable().await,
+		("stop", Some(args)) => cli::stop_process(config, args).exitable().await,
 
 		(cmd, _) => println!("Unknown command '{}'", cmd),
 	}
@@ -231,5 +241,5 @@ async fn main() {
 
 async fn on_exit() {
 	logger::info("Received exit code. Closing all modules");
-	future::join(runner::on_exit(), cli::on_exit()).await;
+	runner::on_exit().await;
 }

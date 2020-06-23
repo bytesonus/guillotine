@@ -26,8 +26,6 @@ use crate::models::RunnerConfig;
 use chrono::{prelude::*, Utc};
 use juno::JunoModule;
 
-pub async fn on_exit() {}
-
 fn get_juno_module_from_config(config: &RunnerConfig) -> Result<JunoModule, &str> {
 	if let Some(host) = &config.host {
 		if host.connection_type == "unix_socket" {
